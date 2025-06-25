@@ -68,7 +68,7 @@ lib/
 
 1. **Cloner le projet**
 ```bash
-git clone https://github.com/[votre-username]/daywatch.git
+git clone https://github.com/bakii-hanma/daywatch.git
 cd daywatch
 ```
 
@@ -112,18 +112,21 @@ Ce projet est sous licence MIT. Voir le fichier [LICENSE](LICENSE) pour plus de 
 
 ## 👥 Contributeurs
 
-- **Développeur Principal** : [Votre Nom]
-- **Design UI/UX** : [Nom du Designer]
+- **Développeur Principal** : [bakii-hanma](https://github.com/bakii-hanma)
+- **Contact** : lonliness.game@gmail.com
 
 ## 🤝 Contribution
 
-Les contributions sont les bienvenues ! Consultez le guide [CONTRIBUTING.md](CONTRIBUTING.md) pour plus d'informations.
+Les contributions sont les bienvenues ! N'hésitez pas à :
+- Ouvrir des issues pour signaler des bugs
+- Proposer de nouvelles fonctionnalités
+- Soumettre des pull requests
 
 ## 📞 Contact
 
 Pour toute question ou suggestion :
-- Email : [votre.email@example.com]
-- LinkedIn : [Votre Profil LinkedIn]
+- **Email** : lonliness.game@gmail.com
+- **GitHub** : [@bakii-hanma](https://github.com/bakii-hanma)
 
 ---
 
