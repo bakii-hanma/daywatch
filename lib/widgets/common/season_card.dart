@@ -26,6 +26,29 @@ class SeasonCard extends StatelessWidget {
     this.onTap,
   }) : super(key: key);
 
+  Widget _buildImage() {
+    // Toujours utiliser Image.network car les images viennent maintenant de l'API
+    return Image.network(
+      imagePath,
+      fit: BoxFit.cover,
+      loadingBuilder: (context, child, loadingProgress) {
+        if (loadingProgress == null) return child;
+        return Container(
+          color: Colors.grey[300],
+          child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+        );
+      },
+      errorBuilder: (context, error, stackTrace) {
+        return Container(
+          color: Colors.grey[300],
+          child: const Center(
+            child: Icon(Icons.tv, size: 40, color: Colors.grey),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return InkWell(
@@ -53,9 +76,9 @@ class SeasonCard extends StatelessWidget {
           },
       child: Container(
         margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(6),
         decoration: BoxDecoration(
-          color: isDarkMode ? Colors.grey[800] : Colors.grey[100],
+          color: isDarkMode ? const Color(0xFF2E2828) : const Color(0xFFE0D9D9),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
@@ -63,8 +86,8 @@ class SeasonCard extends StatelessWidget {
           children: [
             // Image de la saison
             Container(
-              width: 100,
-              height: 140,
+              width: 140,
+              height: 180,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(8),
                 boxShadow: [
@@ -77,11 +100,11 @@ class SeasonCard extends StatelessWidget {
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: Image.asset(imagePath, fit: BoxFit.cover),
+                child: _buildImage(),
               ),
             ),
 
-            const SizedBox(width: 12),
+            const SizedBox(width: 8),
 
             // Informations de la saison
             Expanded(
@@ -105,50 +128,50 @@ class SeasonCard extends StatelessWidget {
                     children: [
                       Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
+                          horizontal: 6,
+                          vertical: 2,
                         ),
                         decoration: BoxDecoration(
                           color: Colors.grey.withOpacity(0.8),
-                          borderRadius: BorderRadius.circular(4),
+                          borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
                           episodes,
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 12,
+                            fontSize: 10,
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 4),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
+                          horizontal: 6,
+                          vertical: 2,
                         ),
                         decoration: BoxDecoration(
                           color: Colors.grey.withOpacity(0.8),
-                          borderRadius: BorderRadius.circular(4),
+                          borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
                           year,
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 12,
+                            fontSize: 10,
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 4),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
+                          horizontal: 6,
+                          vertical: 2,
                         ),
                         decoration: BoxDecoration(
                           color: isDarkMode
                               ? Colors.grey[300]
                               : Colors.grey[800],
-                          borderRadius: BorderRadius.circular(4),
+                          borderRadius: BorderRadius.circular(8),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -156,14 +179,14 @@ class SeasonCard extends StatelessWidget {
                             const Icon(
                               Icons.star,
                               color: Colors.amber,
-                              size: 14,
+                              size: 12,
                             ),
-                            const SizedBox(width: 4),
+                            const SizedBox(width: 2),
                             Text(
                               rating.toString(),
                               style: TextStyle(
                                 color: isDarkMode ? Colors.black : Colors.white,
-                                fontSize: 12,
+                                fontSize: 10,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),

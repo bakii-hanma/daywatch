@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../design_system/colors.dart';
 import '../../design_system/typography.dart';
 import '../../design_system/spacing.dart';
+import '../../models/movie_model.dart';
 
 class MovieCard extends StatelessWidget {
   final String imagePath;
@@ -13,6 +14,7 @@ class MovieCard extends StatelessWidget {
   final bool isDarkMode;
   final VoidCallback? onTap;
   final VoidCallback? onFavoriteTap;
+  final bool isNetworkImage;
 
   const MovieCard({
     Key? key,
@@ -25,13 +27,58 @@ class MovieCard extends StatelessWidget {
     required this.isDarkMode,
     this.onTap,
     this.onFavoriteTap,
+    this.isNetworkImage = false,
   }) : super(key: key);
+
+  // Constructeur pour les films de l'API
+  factory MovieCard.fromApiModel({
+    required MovieApiModel movie,
+    required bool isDarkMode,
+    VoidCallback? onTap,
+    VoidCallback? onFavoriteTap,
+  }) {
+    return MovieCard(
+      imagePath: movie.images.poster ?? '',
+      title: movie.title,
+      genre: movie.genres.isNotEmpty ? movie.genres.first : 'Non défini',
+      duration: '${movie.runtime}min',
+      releaseDate: movie.year.toString(),
+      rating: movie.rating,
+      isDarkMode: isDarkMode,
+      onTap: onTap,
+      onFavoriteTap: onFavoriteTap,
+      isNetworkImage: true,
+    );
+  }
+
+  // Constructeur pour les anciens modèles
+  factory MovieCard.fromModel({
+    required MovieModel movie,
+    required bool isDarkMode,
+    VoidCallback? onTap,
+    VoidCallback? onFavoriteTap,
+  }) {
+    return MovieCard(
+      imagePath: movie.imagePath,
+      title: movie.title,
+      genre: movie.genre,
+      duration: movie.duration,
+      releaseDate: movie.releaseDate,
+      rating: movie.rating,
+      isDarkMode: isDarkMode,
+      onTap: onTap,
+      onFavoriteTap: onFavoriteTap,
+      isNetworkImage: false,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
+        width: 150,
+        height: 250,
         decoration: BoxDecoration(
           color: AppColors.getWidgetBackgroundColor(isDarkMode),
           borderRadius: BorderRadius.circular(AppSpacing.radiusMedium),
@@ -47,18 +94,14 @@ class MovieCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Image avec note et icône favoris
-            Expanded(
-              flex: 2,
+            Container(
+              width: 150,
+              height: 225,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(AppSpacing.radiusMedium),
                 child: Stack(
                   children: [
-                    Image.asset(
-                      imagePath,
-                      width: double.infinity,
-                      height: double.infinity,
-                      fit: BoxFit.cover,
-                    ),
+                    _buildImage(),
                     // Note en haut à gauche
                     Positioned(
                       top: AppSpacing.sm,
@@ -84,7 +127,7 @@ class MovieCard extends StatelessWidget {
                             ),
                             const SizedBox(width: 2),
                             Text(
-                              rating.toString(),
+                              rating.toStringAsFixed(1),
                               style: AppTypography.small(AppColors.black),
                             ),
                           ],
@@ -109,58 +152,97 @@ class MovieCard extends StatelessWidget {
               ),
             ),
             // Informations du film
-            Expanded(
-              flex: 1,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: AppColors.getWidgetBackgroundColor(isDarkMode),
-                  borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(AppSpacing.radiusMedium),
-                    bottomRight: Radius.circular(AppSpacing.radiusMedium),
+            Container(
+              width: 150,
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.md,
+                AppSpacing.sm,
+                AppSpacing.md,
+                AppSpacing.md,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: AppTypography.bodySemiBold(
+                      AppColors.getTextColor(isDarkMode),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.md,
-                  AppSpacing.sm,
-                  AppSpacing.md,
-                  AppSpacing.md,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: AppTypography.bodySemiBold(
-                        AppColors.getTextColor(isDarkMode),
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                  const SizedBox(height: 4),
+                  Text(
+                    genre,
+                    style: AppTypography.caption(
+                      AppColors.getTextSecondaryColor(isDarkMode),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      genre,
-                      style: AppTypography.caption(
-                        AppColors.getTextSecondaryColor(isDarkMode),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 6),
-                    // Durée et date
-                    Row(
-                      children: [
-                        _buildInfoBadge(duration, isDarkMode),
-                        const SizedBox(width: 6),
-                        _buildInfoBadge(releaseDate, isDarkMode),
-                      ],
-                    ),
-                  ],
-                ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 6),
+                  // Durée et date
+                  Row(
+                    children: [
+                      _buildInfoBadge(duration, isDarkMode),
+                      const SizedBox(width: 6),
+                      _buildInfoBadge(releaseDate, isDarkMode),
+                    ],
+                  ),
+                ],
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildImage() {
+    if (imagePath.isEmpty) {
+      return Container(
+        width: double.infinity,
+        height: double.infinity,
+        color: AppColors.textSecondaryLight,
+        child: const Icon(Icons.movie, color: AppColors.white, size: 50),
+      );
+    }
+
+    print('🖼️ Tentative de chargement image réseau: "$imagePath"');
+    return Image.network(
+      imagePath,
+      width: double.infinity,
+      height: double.infinity,
+      fit: BoxFit.cover,
+      loadingBuilder: (context, child, loadingProgress) {
+        if (loadingProgress == null) {
+          print('✅ Image chargée avec succès: "$imagePath"');
+          return child;
+        }
+        print('⏳ Chargement en cours: "$imagePath"');
+        return Container(
+          width: double.infinity,
+          height: double.infinity,
+          color: AppColors.textSecondaryLight.withOpacity(0.3),
+          child: const Center(
+            child: CircularProgressIndicator(color: AppColors.primary),
+          ),
+        );
+      },
+      errorBuilder: (context, error, stackTrace) {
+        print('❌ Erreur chargement image: "$imagePath"');
+        print('   Error: $error');
+        return Container(
+          width: double.infinity,
+          height: double.infinity,
+          color: AppColors.textSecondaryLight,
+          child: const Icon(
+            Icons.broken_image,
+            color: AppColors.white,
+            size: 50,
+          ),
+        );
+      },
     );
   }
 

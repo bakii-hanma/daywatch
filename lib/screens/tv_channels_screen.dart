@@ -4,6 +4,8 @@ import '../design_system/spacing.dart';
 import '../design_system/typography.dart';
 import '../widgets/common/genre_filter_bar.dart';
 import '../widgets/common/tv_channel_card.dart';
+import '../models/tv_channel_model.dart';
+import '../services/tv_channel_service.dart';
 
 class TvChannelsScreen extends StatefulWidget {
   const TvChannelsScreen({Key? key}) : super(key: key);
@@ -14,8 +16,7 @@ class TvChannelsScreen extends StatefulWidget {
 
 class _TvChannelsScreenState extends State<TvChannelsScreen> {
   String selectedCategory = 'Toutes';
-
-  final List<String> categories = [
+  List<String> categories = [
     'Toutes',
     'Généralistes',
     'Sport',
@@ -25,127 +26,54 @@ class _TvChannelsScreenState extends State<TvChannelsScreen> {
     'Documentaires',
   ];
 
-  final List<Map<String, String>> allChannels = [
-    // Généralistes
-    {
-      'name': 'TF1',
-      'category': 'Généralistes',
-      'program': 'Journal de 13h - Actualités nationales',
-    },
-    {
-      'name': 'France 2',
-      'category': 'Généralistes',
-      'program': 'Télématin - Magazine matinal',
-    },
-    {
-      'name': 'M6',
-      'category': 'Généralistes',
-      'program': 'Capital - Magazine économique',
-    },
-    {
-      'name': 'France 3',
-      'category': 'Généralistes',
-      'program': 'Plus belle la vie - Série',
-    },
+  List<TvChannelModel> allChannels = [];
+  List<TvChannelModel> filteredChannels = [];
+  bool isLoading = true;
 
-    // Sport
-    {
-      'name': 'RMC Sport',
-      'category': 'Sport',
-      'program': 'Ligue 1 en direct - PSG vs Marseille',
-    },
-    {
-      'name': 'Eurosport',
-      'category': 'Sport',
-      'program': 'Tennis Roland Garros - Finale',
-    },
-    {
-      'name': 'beIN Sports',
-      'category': 'Sport',
-      'program': 'Champions League - Highlights',
-    },
-    {
-      'name': 'L\'Équipe',
-      'category': 'Sport',
-      'program': 'L\'Équipe du soir - Talk show',
-    },
+  @override
+  void initState() {
+    super.initState();
+    _loadChannels();
+  }
 
-    // Info
-    {
-      'name': 'BFM TV',
-      'category': 'Info',
-      'program': 'BFM Story - Actualités en continu',
-    },
-    {
-      'name': 'CNews',
-      'category': 'Info',
-      'program': 'L\'Heure des Pros - Débat politique',
-    },
-    {
-      'name': 'LCI',
-      'category': 'Info',
-      'program': '24h Pujadas - Journal en continu',
-    },
+  Future<void> _loadChannels() async {
+    try {
+      final channels = await TvChannelService.getAllChannels();
+      final availableCategories =
+          await TvChannelService.getAvailableCategories();
 
-    // Divertissement
-    {
-      'name': 'W9',
-      'category': 'Divertissement',
-      'program': 'Les Marseillais - Télé-réalité',
-    },
-    {
-      'name': 'TMC',
-      'category': 'Divertissement',
-      'program': 'Quotidien - Talk show',
-    },
-    {
-      'name': 'NRJ 12',
-      'category': 'Divertissement',
-      'program': 'Les Anges - Télé-réalité',
-    },
-
-    // Cinéma
-    {
-      'name': 'Canal+',
-      'category': 'Cinéma',
-      'program': 'Fast & Furious 9 - Action',
-    },
-    {
-      'name': 'OCS Max',
-      'category': 'Cinéma',
-      'program': 'The Batman - Super-héros',
-    },
-    {
-      'name': 'Ciné+ Premier',
-      'category': 'Cinéma',
-      'program': 'Dune - Science-fiction',
-    },
-
-    // Documentaires
-    {
-      'name': 'Arte',
-      'category': 'Documentaires',
-      'program': 'Nature - Documentaire animalier',
-    },
-    {
-      'name': 'National Geographic',
-      'category': 'Documentaires',
-      'program': 'Cosmos - Exploration spatiale',
-    },
-    {
-      'name': 'Discovery',
-      'category': 'Documentaires',
-      'program': 'How It\'s Made - Fabrication',
-    },
-  ];
-
-  List<Map<String, String>> get filteredChannels {
-    if (selectedCategory == 'Toutes') {
-      return allChannels;
+      setState(() {
+        allChannels = channels;
+        filteredChannels = channels;
+        categories = availableCategories;
+        isLoading = false;
+      });
+    } catch (e) {
+      print('Erreur lors du chargement des chaînes: $e');
+      setState(() {
+        isLoading = false;
+      });
     }
-    return allChannels
-        .where((channel) => channel['category'] == selectedCategory)
-        .toList();
+  }
+
+  Future<void> _filterChannels(String category) async {
+    setState(() {
+      selectedCategory = category;
+      isLoading = true;
+    });
+
+    try {
+      final channels = await TvChannelService.getChannelsByCategory(category);
+      setState(() {
+        filteredChannels = channels;
+        isLoading = false;
+      });
+    } catch (e) {
+      print('Erreur lors du filtrage: $e');
+      setState(() {
+        isLoading = false;
+      });
+    }
   }
 
   @override
@@ -189,11 +117,7 @@ class _TvChannelsScreenState extends State<TvChannelsScreen> {
             GenreFilterBar(
               genres: categories,
               selectedGenre: selectedCategory,
-              onGenreSelected: (category) {
-                setState(() {
-                  selectedCategory = category;
-                });
-              },
+              onGenreSelected: _filterChannels,
             ),
 
             // Compteur et info
@@ -245,32 +169,34 @@ class _TvChannelsScreenState extends State<TvChannelsScreen> {
 
             // Grille des chaînes
             Expanded(
-              child: GridView.builder(
-                padding: const EdgeInsets.all(16),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  childAspectRatio: 0.7,
-                  crossAxisSpacing: 16,
-                  mainAxisSpacing: 16,
-                ),
-                itemCount: filteredChannels.length,
-                itemBuilder: (context, index) {
-                  final channel = filteredChannels[index];
-                  return TvChannelCard(
-                    channelName: channel['name']!,
-                    program: channel['program']!,
-                    onTap: () {
-                      // Navigation vers la lecture de la chaîne
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Ouverture de ${channel['name']}'),
-                          backgroundColor: AppColors.primary,
-                        ),
-                      );
-                    },
-                  );
-                },
-              ),
+              child: isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : GridView.builder(
+                      padding: const EdgeInsets.all(16),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            childAspectRatio: 0.7,
+                            crossAxisSpacing: 16,
+                            mainAxisSpacing: 16,
+                          ),
+                      itemCount: filteredChannels.length,
+                      itemBuilder: (context, index) {
+                        final channel = filteredChannels[index];
+                        return TvChannelCard(
+                          channel: channel,
+                          onTap: () {
+                            // Navigation vers la lecture de la chaîne
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Ouverture de ${channel.name}'),
+                                backgroundColor: AppColors.primary,
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
             ),
           ],
         ),

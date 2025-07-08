@@ -5,18 +5,65 @@ import '../../screens/movie_detail_screen.dart';
 import 'movie_card.dart';
 
 class MoviesGrid extends StatelessWidget {
-  final List<MovieModel> movies;
+  final List<MovieModel>? movies;
+  final List<MovieApiModel>? apiMovies;
   final bool isDarkMode;
   final String countText;
   final Function(MovieModel)? onMovieTap;
+  final Function(MovieApiModel)? onApiMovieTap;
 
   const MoviesGrid({
     Key? key,
-    required this.movies,
+    this.movies,
+    this.apiMovies,
     required this.isDarkMode,
     required this.countText,
     this.onMovieTap,
-  }) : super(key: key);
+    this.onApiMovieTap,
+  }) : assert(
+         movies != null || apiMovies != null,
+         'Either movies or apiMovies must be provided',
+       ),
+       super(key: key);
+
+  // Constructor pour les films classiques
+  const MoviesGrid.classic({
+    Key? key,
+    required List<MovieModel> movies,
+    required bool isDarkMode,
+    required String countText,
+    Function(MovieModel)? onMovieTap,
+  }) : this(
+         key: key,
+         movies: movies,
+         apiMovies: null,
+         isDarkMode: isDarkMode,
+         countText: countText,
+         onMovieTap: onMovieTap,
+         onApiMovieTap: null,
+       );
+
+  // Constructor pour les films de l'API
+  const MoviesGrid.api({
+    Key? key,
+    required List<MovieApiModel> apiMovies,
+    required bool isDarkMode,
+    required String countText,
+    Function(MovieApiModel)? onApiMovieTap,
+  }) : this(
+         key: key,
+         movies: null,
+         apiMovies: apiMovies,
+         isDarkMode: isDarkMode,
+         countText: countText,
+         onMovieTap: null,
+         onApiMovieTap: onApiMovieTap,
+       );
+
+  // Getters pour unifier l'accès aux données
+  List<dynamic> get _currentMovies => movies ?? apiMovies ?? [];
+  int get _moviesCount => movies?.length ?? apiMovies?.length ?? 0;
+  bool get _isApiMode => apiMovies != null;
 
   @override
   Widget build(BuildContext context) {
@@ -31,7 +78,7 @@ class MoviesGrid extends StatelessWidget {
             text: TextSpan(
               children: [
                 TextSpan(
-                  text: '${movies.length}',
+                  text: '$_moviesCount',
                   style: TextStyle(
                     color: AppColors.getTextSecondaryColor(isDarkMode),
                     fontSize: 14,
@@ -59,41 +106,71 @@ class MoviesGrid extends StatelessWidget {
               mainAxisSpacing: 16,
               childAspectRatio: 150 / 350, // 150px width / 350px height
             ),
-            itemCount: movies.length,
+            itemCount: _moviesCount,
             itemBuilder: (context, index) {
-              final movie = movies[index];
               return SizedBox(
                 width: 150,
                 height: 350,
-                child: MovieCard(
-                  imagePath: movie.imagePath,
-                  title: movie.title,
-                  genre: movie.genre,
-                  duration: movie.duration,
-                  releaseDate: movie.releaseDate,
-                  rating: movie.rating,
-                  isDarkMode: isDarkMode,
-                  onTap: () {
-                    if (onMovieTap != null) {
-                      onMovieTap!(movie);
-                    } else {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => MovieDetailScreen(movie: movie),
-                        ),
-                      );
-                    }
-                  },
-                  onFavoriteTap: () {
-                    // Ajouter aux favoris
-                  },
-                ),
+                child: _isApiMode
+                    ? _buildApiMovieCard(context, index)
+                    : _buildClassicMovieCard(context, index),
               );
             },
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildApiMovieCard(BuildContext context, int index) {
+    final movie = apiMovies![index];
+    return MovieCard.fromApiModel(
+      movie: movie,
+      isDarkMode: isDarkMode,
+      onTap: () {
+        if (onApiMovieTap != null) {
+          onApiMovieTap!(movie);
+        } else {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => MovieDetailScreen.fromApiMovie(movie),
+            ),
+          );
+        }
+      },
+      onFavoriteTap: () {
+        // Ajouter aux favoris
+        print('Ajouté aux favoris: ${movie.title}');
+      },
+    );
+  }
+
+  Widget _buildClassicMovieCard(BuildContext context, int index) {
+    final movie = movies![index];
+    return MovieCard(
+      imagePath: movie.imagePath,
+      title: movie.title,
+      genre: movie.genre,
+      duration: movie.duration,
+      releaseDate: movie.releaseDate,
+      rating: movie.rating,
+      isDarkMode: isDarkMode,
+      onTap: () {
+        if (onMovieTap != null) {
+          onMovieTap!(movie);
+        } else {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => MovieDetailScreen.fromMovie(movie),
+            ),
+          );
+        }
+      },
+      onFavoriteTap: () {
+        // Ajouter aux favoris
+      },
     );
   }
 }

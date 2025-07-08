@@ -32,12 +32,31 @@ class ActorCard extends StatelessWidget {
                 color: AppColors.greyOverlay(0.3),
                 borderRadius: BorderRadius.circular(AppSpacing.radiusXLarge),
               ),
-              child: Image.asset(
-                imagePath,
-                width: 170,
-                height: 130,
-                fit: BoxFit.cover,
-              ),
+              child: imagePath.startsWith('http')
+                  ? Image.network(
+                      imagePath,
+                      width: 170,
+                      height: 130,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          width: 170,
+                          height: 130,
+                          color: AppColors.greyOverlay(0.3),
+                          child: Icon(
+                            Icons.person,
+                            size: 40,
+                            color: AppColors.getTextSecondaryColor(isDarkMode),
+                          ),
+                        );
+                      },
+                    )
+                  : Image.asset(
+                      imagePath,
+                      width: 170,
+                      height: 130,
+                      fit: BoxFit.cover,
+                    ),
             ),
           ),
           const SizedBox(height: AppSpacing.md),

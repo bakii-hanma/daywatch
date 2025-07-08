@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../design_system/colors.dart';
+import '../../models/series_model.dart';
+import '../../screens/episode_player_screen.dart';
+import '../../config/server_config.dart';
 
 class EpisodeCard extends StatelessWidget {
   final String imagePath;
@@ -10,6 +13,7 @@ class EpisodeCard extends StatelessWidget {
   final double rating;
   final bool isDarkMode;
   final VoidCallback? onTap;
+  final EpisodeApiModel? episode; // Nouveau paramètre pour l'épisode API
 
   const EpisodeCard({
     Key? key,
@@ -21,12 +25,76 @@ class EpisodeCard extends StatelessWidget {
     required this.rating,
     required this.isDarkMode,
     this.onTap,
+    this.episode, // Nouveau paramètre optionnel
   }) : super(key: key);
+
+  // Constructeur pour les épisodes API
+  EpisodeCard.fromApi({
+    Key? key,
+    required this.episode,
+    required this.isDarkMode,
+  }) : imagePath = episode!.getMainImage(),
+       title = episode!.title,
+       duration = '${episode!.runtime} min',
+       description = episode!.overview,
+       episodeNumber = episode!.episodeNumber,
+       rating = episode!.rating,
+       onTap = null,
+       super(key: key);
+
+  void _launchEpisodePlayer(BuildContext context) {
+    if (episode == null || episode!.file == null) {
+      // Afficher un message d'erreur si l'épisode n'est pas disponible
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Épisode non disponible pour la lecture'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final fileInfo = episode!.file!;
+    print('🎬 Lancement de l\'épisode: ${episode!.title}');
+    print('📁 Fichier: ${fileInfo.fileName}');
+    print('📂 Chemin: ${fileInfo.fullPath}');
+
+    // Naviguer vers le lecteur d'épisode
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EpisodePlayerScreen(episode: episode!),
+      ),
+    );
+  }
+
+  Widget _buildImage() {
+    // Toujours utiliser Image.network car les images viennent maintenant de l'API
+    return Image.network(
+      imagePath,
+      fit: BoxFit.cover,
+      loadingBuilder: (context, child, loadingProgress) {
+        if (loadingProgress == null) return child;
+        return Container(
+          color: Colors.grey[300],
+          child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+        );
+      },
+      errorBuilder: (context, error, stackTrace) {
+        return Container(
+          color: Colors.grey[300],
+          child: const Center(
+            child: Icon(Icons.tv, size: 40, color: Colors.grey),
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: onTap,
+      onTap: episode != null ? () => _launchEpisodePlayer(context) : onTap,
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
         child: Column(
@@ -50,7 +118,7 @@ class EpisodeCard extends StatelessWidget {
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
-                    child: Image.asset(imagePath, fit: BoxFit.cover),
+                    child: _buildImage(),
                   ),
                 ),
 
@@ -140,7 +208,7 @@ class EpisodeCard extends StatelessWidget {
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              rating.toString(),
+                              rating.toStringAsFixed(1),
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 12,
@@ -154,37 +222,38 @@ class EpisodeCard extends StatelessWidget {
                   ),
                 ),
 
-                // Date en bas à droite
-                Positioned(
-                  bottom: 12,
-                  right: 12,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.8),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: const Text(
-                      'Sep 28, 2023',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
+                // Qualité du fichier en bas à droite (si disponible)
+                if (episode?.file != null)
+                  Positioned(
+                    bottom: 12,
+                    right: 12,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(0.8),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        episode!.file!.quality.name,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
-                ),
 
                 // Titre en bas à gauche
                 Positioned(
                   bottom: 12,
                   left: 12,
-                  right: 80,
+                  right: episode?.file != null ? 80 : 12,
                   child: Text(
-                    '#ThinkBrink',
+                    title,
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 16,
@@ -243,6 +312,24 @@ class EpisodeCard extends StatelessWidget {
               maxLines: 4,
               overflow: TextOverflow.ellipsis,
             ),
+
+            // Informations supplémentaires pour les épisodes API
+            if (episode?.file != null) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(Icons.hd, color: Colors.green, size: 16),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${episode!.file!.quality.resolution}p • ${episode!.file!.sizeGB.toStringAsFixed(2)}GB',
+                    style: TextStyle(
+                      color: AppColors.getTextSecondaryColor(isDarkMode),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       ),

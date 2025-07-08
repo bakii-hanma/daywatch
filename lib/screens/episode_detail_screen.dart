@@ -72,7 +72,7 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen>
             Container(
               height: 250,
               width: double.infinity,
-              child: Image.asset(widget.episode.imagePath, fit: BoxFit.cover),
+              child: Image.network(widget.episode.imagePath, fit: BoxFit.cover),
             ),
 
             // Boutons retour et options en haut
@@ -143,7 +143,7 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen>
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: Image.asset(
+                  child: Image.network(
                     widget.episode.imagePath,
                     fit: BoxFit.cover,
                   ),

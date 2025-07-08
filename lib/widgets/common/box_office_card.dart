@@ -53,11 +53,60 @@ class BoxOfficeCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(AppSpacing.radiusMedium),
                 child: Stack(
                   children: [
-                    Image.asset(
+                    // Utiliser Image.network pour les vraies images de l'API
+                    Image.network(
                       imagePath,
                       width: double.infinity,
                       height: double.infinity,
                       fit: BoxFit.cover,
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return Container(
+                          width: double.infinity,
+                          height: double.infinity,
+                          color: AppColors.greyOverlay(0.3),
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              value: loadingProgress.expectedTotalBytes != null
+                                  ? loadingProgress.cumulativeBytesLoaded /
+                                        loadingProgress.expectedTotalBytes!
+                                  : null,
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                AppColors.primary,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          width: double.infinity,
+                          height: double.infinity,
+                          color: AppColors.greyOverlay(0.3),
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.movie,
+                                  size: 40,
+                                  color: AppColors.getTextSecondaryColor(
+                                    isDarkMode,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Image non disponible',
+                                  style: AppTypography.small(
+                                    AppColors.getTextSecondaryColor(isDarkMode),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
                     ),
                     // Badge de rang en haut à gauche
                     Positioned(

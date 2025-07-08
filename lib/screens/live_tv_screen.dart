@@ -6,6 +6,8 @@ import '../widgets/common/horizontal_section.dart';
 import '../widgets/common/tv_channel_card.dart';
 import '../widgets/common/live_match_card.dart';
 import '../widgets/common/replay_card.dart';
+import '../models/tv_channel_model.dart';
+import '../services/tv_channel_service.dart';
 import 'tv_channels_screen.dart';
 import 'live_matches_screen.dart';
 import 'replays_screen.dart';
@@ -29,25 +31,29 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
     'assets/poster/ee95c8d574be76182adb5fd79675435e550090e2.jpg',
   ];
 
-  final List<Map<String, String>> tvChannels = [
-    {
-      'name': 'TF1',
-      'program': 'Journal de 13h - Actualités nationales et internationales',
-    },
-    {
-      'name': 'France 2',
-      'program': 'Télématin - Magazine matinal d\'information',
-    },
-    {
-      'name': 'Canal+',
-      'program': 'Les Guignols - Émission satirique quotidienne',
-    },
-    {'name': 'M6', 'program': 'Capital - Magazine économique et société'},
-    {'name': 'Arte', 'program': 'Documentaire - Nature et environnement'},
-    {'name': 'France 3', 'program': 'Plus belle la vie - Série télévisée'},
-    {'name': 'RMC Sport', 'program': 'Football - Ligue 1 en direct'},
-    {'name': 'Eurosport', 'program': 'Tennis - Roland Garros live'},
-  ];
+  List<TvChannelModel> tvChannels = [];
+  bool isLoadingChannels = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadChannels();
+  }
+
+  Future<void> _loadChannels() async {
+    try {
+      final channels = await TvChannelService.getHomeChannels(limit: 8);
+      setState(() {
+        tvChannels = channels;
+        isLoadingChannels = false;
+      });
+    } catch (e) {
+      print('Erreur lors du chargement des chaînes: $e');
+      setState(() {
+        isLoadingChannels = false;
+      });
+    }
+  }
 
   final List<Map<String, String>> liveMatches = [
     {
@@ -242,30 +248,41 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
               const SizedBox(height: AppSpacing.xl),
 
               // Section Chaînes TV avec HorizontalSection
-              HorizontalSection<Map<String, String>>(
-                title: 'Chaînes TV',
-                items: tvChannels,
-                itemWidth: 160,
-                sectionHeight: 260,
-                isDarkMode: isDarkMode,
-                onSeeMoreTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const TvChannelsScreen(),
+              isLoadingChannels
+                  ? Container(
+                      height: 260,
+                      padding: const EdgeInsets.all(16),
+                      child: const Center(child: CircularProgressIndicator()),
+                    )
+                  : HorizontalSection<TvChannelModel>(
+                      title: 'Chaînes TV',
+                      items: tvChannels,
+                      itemWidth: 160,
+                      sectionHeight: 260,
+                      isDarkMode: isDarkMode,
+                      onSeeMoreTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const TvChannelsScreen(),
+                          ),
+                        );
+                      },
+                      itemBuilder: (channel, index) {
+                        return TvChannelCard(
+                          channel: channel,
+                          onTap: () {
+                            // Action de sélection de chaîne
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Ouverture de ${channel.name}'),
+                                backgroundColor: AppColors.primary,
+                              ),
+                            );
+                          },
+                        );
+                      },
                     ),
-                  );
-                },
-                itemBuilder: (channel, index) {
-                  return TvChannelCard(
-                    channelName: channel['name']!,
-                    program: channel['program']!,
-                    onTap: () {
-                      // Action de sélection de chaîne
-                    },
-                  );
-                },
-              ),
 
               const SizedBox(height: AppSpacing.xl),
 

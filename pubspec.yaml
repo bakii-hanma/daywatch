@@ -35,6 +35,32 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
 
+  # HTTP requests
+  http: ^1.1.0
+  
+  # Environment variables
+  flutter_dotenv: ^5.1.0
+  
+  # Video player avec support étendu des formats
+  video_player: ^2.8.1
+  
+  # Chewie - Interface moderne pour video_player avec support multi-formats
+  chewie: ^1.7.5
+  
+  # YouTube player
+  youtube_player_flutter: ^9.0.0
+  
+  # Wakelock Plus - Empêcher la mise en veille pendant la lecture vidéo
+  wakelock_plus: ^1.2.8
+  
+  # Media Kit - Lecteur vidéo puissant avec support de nombreux formats
+  media_kit: ^1.2.0
+  media_kit_video: ^1.2.5
+  media_kit_libs_video: ^1.0.5
+
+  # Shimmer - Effet de chargement animé
+  shimmer: ^3.0.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -65,6 +91,7 @@ flutter:
     - assets/plateformes/
     - assets/abonnement/dark/
     - assets/abonnement/light/
+    - .env
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

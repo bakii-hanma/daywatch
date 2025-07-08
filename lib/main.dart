@@ -1,7 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:media_kit/media_kit.dart';
 import 'screens/splash_screen.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialiser MediaKit pour la lecture vidéo avancée
+  MediaKit.ensureInitialized();
+  print('✅ MediaKit initialisé - Support de 300+ formats vidéo');
+
+  // Charger le fichier .env
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    print('Erreur lors du chargement du fichier .env: $e');
+  }
+
   runApp(const MyApp());
 }
 

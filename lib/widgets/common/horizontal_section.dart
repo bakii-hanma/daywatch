@@ -49,7 +49,7 @@ class HorizontalSection<T> extends StatelessWidget {
               return Container(
                 width: itemWidth,
                 margin: EdgeInsets.only(
-                  right: index < items.length - 1 ? AppSpacing.lg : 0,
+                  right: index < items.length - 1 ? AppSpacing.md : 0,
                 ),
                 child: itemBuilder(items[index], index),
               );
