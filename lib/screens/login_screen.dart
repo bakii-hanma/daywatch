@@ -168,14 +168,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 8),
                 TextField(
                   controller: _usernameController,
-                  style: TextStyle(color: textColor),
+                  style: TextStyle(color: Colors.black),
                   decoration: InputDecoration(
-                    hintText: 'Placeholder',
+                    hintText: 'daywatcher@gmail.com',
                     hintStyle: TextStyle(
-                      color: AppColors.getAuthHintTextColor(isDarkMode),
+                      color: const Color.fromARGB(110, 0, 0, 0),
                     ),
                     filled: true,
-                    fillColor: AppColors.getAuthFieldFillColor(isDarkMode),
+                    fillColor: const Color.fromARGB(190, 255, 255, 255),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(
                         AppSpacing.radiusSmall,
@@ -219,10 +219,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 TextField(
                   controller: _passwordController,
                   obscureText: true,
-                  style: TextStyle(color: textColor),
+                  style: TextStyle(color: Colors.black),
                   decoration: InputDecoration(
                     filled: true,
-                    fillColor: AppColors.getAuthFieldFillColor(isDarkMode),
+                    fillColor: const Color.fromARGB(190, 255, 255, 255),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(
                         AppSpacing.radiusSmall,
