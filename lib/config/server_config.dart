@@ -9,6 +9,10 @@ class ServerConfig {
   /// URL de base pour le serveur de streaming/films
   static const String streamingBaseUrl = 'http://185.139.230.11';
 
+  // ====== SERVEUR UTILISATEURS (AUTH) ======
+  /// URL de base pour l'API utilisateurs (inscription, connexion)
+  static const String usersApiBaseUrl = 'https://daywatch-api.onrender.com';
+
   // ====== MÉTHODES UTILITAIRES ======
 
   /// Obtenir l'URL complète pour un fichier sur le serveur de streaming

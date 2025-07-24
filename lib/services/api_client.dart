@@ -31,6 +31,20 @@ class ApiClient {
   static const String _tvChannelsAll = '$_tvChannelsPrefix/channels/all';
   static const String _tvChannelsBase = '$_tvChannelsPrefix/channels';
 
+  // ====== ENDPOINTS UTILISATEURS (AUTH) ======
+  static const String _usersPrefix = '/api/users';
+  static const String _registerEndpoint = '$_usersPrefix/register';
+  static const String _loginEndpoint = '$_usersPrefix/login';
+
+  /// URL de base pour l'API utilisateurs
+  static String get usersBaseUrl => ServerConfig.usersApiBaseUrl;
+
+  /// URL complète pour l'inscription
+  static String get registerUrl => '{$usersBaseUrl}$_registerEndpoint';
+
+  /// URL complète pour la connexion
+  static String get loginUrl => '{$usersBaseUrl}$_loginEndpoint';
+
   /// URLs complètes des endpoints - Films (Radarr) - Pour compatibilité externe
   static String get recentMoviesUrl => '$baseUrl$_moviesRecent';
   static String get popularMoviesUrl => '$baseUrl$_moviesPopular';
@@ -669,6 +683,38 @@ class ApiClient {
     // Pour l'instant, on retourne true pour éviter les erreurs
     // L'implémentation réelle dépendra de la structure de TvChannelModel
     return true;
+  }
+
+  /// Inscription utilisateur
+  static Future<ApiResponse<T>> registerUser<T>({
+    required Map<String, dynamic> body,
+    T Function(Map<String, dynamic>)? fromJson,
+  }) async {
+    try {
+      final response = await post<T>(
+        registerUrl,
+        body: body,
+        fromJson: fromJson,
+      );
+      return response;
+    } catch (e) {
+      print('❌ Erreur inscription: $e');
+      return ApiResponse.error('Erreur inscription: $e');
+    }
+  }
+
+  /// Connexion utilisateur
+  static Future<ApiResponse<T>> loginUser<T>({
+    required Map<String, dynamic> body,
+    T Function(Map<String, dynamic>)? fromJson,
+  }) async {
+    try {
+      final response = await post<T>(loginUrl, body: body, fromJson: fromJson);
+      return response;
+    } catch (e) {
+      print('❌ Erreur connexion: $e');
+      return ApiResponse.error('Erreur connexion: $e');
+    }
   }
 
   /// Tester la connectivité avec le serveur
