@@ -7,6 +7,7 @@ import '../widgets/daywatch_logo.dart';
 import '../widgets/common/animated_poster_background.dart';
 import 'otp_verification_screen.dart';
 import 'login_screen.dart';
+import '../services/api_client.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -314,13 +315,82 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   width: double.infinity,
                   height: 50,
                   child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const OtpVerificationScreen(),
+                    onPressed: () async {
+                      // Vérifier que les champs ne sont pas vides
+                      if (_usernameController.text.isEmpty ||
+                          _emailController.text.isEmpty ||
+                          _passwordController.text.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Veuillez remplir tous les champs'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                        return;
+                      }
+
+                      // Afficher un indicateur de chargement
+                      showDialog(
+                        context: context,
+                        barrierDismissible: false,
+                        builder: (context) => const Center(
+                          child: CircularProgressIndicator(),
                         ),
                       );
+
+                      // Préparer les données d'inscription
+                      final userData = {
+                        'username': _usernameController.text,
+                        'email': _emailController.text,
+                        'password': _passwordController.text,
+                      };
+
+                      try {
+                        // Appeler l'API d'inscription
+                        final response = await ApiClient.registerUser(
+                          body: userData,
+                        );
+
+                        // Fermer le dialogue de chargement
+                        Navigator.pop(context);
+
+                        if (response.isSuccess) {
+                          // Afficher un message de succès
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Inscription réussie !'),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+
+                          // Naviguer vers l'écran de vérification OTP
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const OtpVerificationScreen(),
+                            ),
+                          );
+                        } else {
+                          // Afficher le message d'erreur
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(response.error ?? 'Erreur d\'inscription'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        // Fermer le dialogue de chargement
+                        Navigator.pop(context);
+                        
+                        // Afficher l'erreur
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Erreur: $e'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
