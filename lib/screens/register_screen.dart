@@ -1,3 +1,4 @@
+import 'package:daywatch/screens/device_selection_screen.dart';
 import 'package:flutter/material.dart';
 import 'dart:ui';
 import '../design_system/colors.dart';
@@ -5,6 +6,8 @@ import '../design_system/spacing.dart';
 import '../design_system/typography.dart';
 import '../widgets/daywatch_logo.dart';
 import '../widgets/common/animated_poster_background.dart';
+import '../widgets/common/custom_text_field.dart';
+import '../utils/alert_utils.dart';
 import 'otp_verification_screen.dart';
 import 'login_screen.dart';
 import '../services/api_client.dart';
@@ -20,6 +23,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _emailController = TextEditingController();
+  final _phoneNumberController = TextEditingController();
 
   @override
   void dispose() {
@@ -114,31 +118,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
           ),
 
-          // Logo DAYWATCH
-          Positioned(
-            top: 120,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                child: DaywatchLogo(
-                  size: LogoSize.xlarge,
-                  isDarkMode: isDarkMode,
-                ),
-              ),
-            ),
-          ),
-
-          // Contenu principal - Formulaire d'inscription
-          Positioned(
-            left: 20,
-            right: 20,
-            bottom: 60,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+          // Contenu principal avec défilement
+          Positioned.fill(
+            top: 100,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Logo DAYWATCH
+                  Center(
+                    child: Container(
+                      padding: const EdgeInsets.all(AppSpacing.lg),
+                      child: DaywatchLogo(
+                        size: LogoSize.xlarge,
+                        isDarkMode: isDarkMode,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  
+                  // Formulaire d'inscription
                 // Titre principal
                 Text(
                   'Ravis de vous\nrencontrer !',
@@ -159,154 +159,41 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 const SizedBox(height: 32),
 
                 // Champ Nom d'utilisateur
-                Text(
-                  'Nom d\'utilisateur',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: textColor,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
+                CustomTextField(
                   controller: _usernameController,
-                  style: TextStyle(color: textColor),
-                  decoration: InputDecoration(
-                    hintText: 'Votre nom d\'utilisateur',
-                    hintStyle: TextStyle(
-                      color: AppColors.getAuthHintTextColor(isDarkMode),
-                    ),
-                    filled: true,
-                    fillColor: AppColors.getAuthFieldFillColor(isDarkMode),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(
-                        AppSpacing.radiusSmall,
-                      ),
-                      borderSide: BorderSide(
-                        color: AppColors.getAuthFieldBorderColor(isDarkMode),
-                      ),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(
-                        AppSpacing.radiusSmall,
-                      ),
-                      borderSide: BorderSide(
-                        color: AppColors.getAuthFieldBorderColor(isDarkMode),
-                      ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(
-                        AppSpacing.radiusSmall,
-                      ),
-                      borderSide: BorderSide(color: AppColors.primary),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 14,
-                    ),
-                  ),
+                  label: 'Nom d\'utilisateur',
+                  hintText: 'Votre nom d\'utilisateur',
+                  isDarkMode: isDarkMode,
                 ),
                 const SizedBox(height: 16),
 
                 // Champ Email
-                Text(
-                  'Email',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: textColor,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
+                CustomTextField(
                   controller: _emailController,
-                  style: TextStyle(color: textColor),
+                  label: 'Email',
+                  hintText: 'votre@email.com',
+                  isDarkMode: isDarkMode,
                   keyboardType: TextInputType.emailAddress,
-                  decoration: InputDecoration(
-                    hintText: 'votre@email.com',
-                    hintStyle: TextStyle(
-                      color: AppColors.getAuthHintTextColor(isDarkMode),
-                    ),
-                    filled: true,
-                    fillColor: AppColors.getAuthFieldFillColor(isDarkMode),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(
-                        AppSpacing.radiusSmall,
-                      ),
-                      borderSide: BorderSide(
-                        color: AppColors.getAuthFieldBorderColor(isDarkMode),
-                      ),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(
-                        AppSpacing.radiusSmall,
-                      ),
-                      borderSide: BorderSide(
-                        color: AppColors.getAuthFieldBorderColor(isDarkMode),
-                      ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(
-                        AppSpacing.radiusSmall,
-                      ),
-                      borderSide: BorderSide(color: AppColors.primary),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 14,
-                    ),
-                  ),
                 ),
                 const SizedBox(height: 16),
 
-                // Champ Mot de passe
-                Text(
-                  'Mot de passe',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: textColor,
-                  ),
+                // Champ Numéro de téléphone
+                CustomTextField(
+                  controller: _phoneNumberController,
+                  label: 'Numéro de téléphone',
+                  hintText: 'Votre numéro de téléphone',
+                  isDarkMode: isDarkMode,
+                  keyboardType: TextInputType.phone,
                 ),
-                const SizedBox(height: 8),
-                TextField(
+                const SizedBox(height: 24),
+
+                // Champ Mot de passe
+                CustomTextField(
                   controller: _passwordController,
+                  label: 'Mot de passe',
+                  hintText: 'Votre mot de passe',
+                  isDarkMode: isDarkMode,
                   obscureText: true,
-                  style: TextStyle(color: textColor),
-                  decoration: InputDecoration(
-                    hintText: 'Votre mot de passe',
-                    hintStyle: TextStyle(
-                      color: AppColors.getAuthHintTextColor(isDarkMode),
-                    ),
-                    filled: true,
-                    fillColor: AppColors.getAuthFieldFillColor(isDarkMode),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(
-                        AppSpacing.radiusSmall,
-                      ),
-                      borderSide: BorderSide(
-                        color: AppColors.getAuthFieldBorderColor(isDarkMode),
-                      ),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(
-                        AppSpacing.radiusSmall,
-                      ),
-                      borderSide: BorderSide(
-                        color: AppColors.getAuthFieldBorderColor(isDarkMode),
-                      ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(
-                        AppSpacing.radiusSmall,
-                      ),
-                      borderSide: BorderSide(color: AppColors.primary),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 14,
-                    ),
-                  ),
                 ),
                 const SizedBox(height: 24),
 
@@ -320,11 +207,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       if (_usernameController.text.isEmpty ||
                           _emailController.text.isEmpty ||
                           _passwordController.text.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Veuillez remplir tous les champs'),
-                            backgroundColor: Colors.red,
-                          ),
+                        AlertUtils.showError(
+                          context: context,
+                          message: 'Veuillez remplir tous les champs',
+                          debugDetails: 'Tentative d\'inscription avec des champs vides: ' +
+                              'username=${_usernameController.text.isEmpty}, ' +
+                              'email=${_emailController.text.isEmpty}, ' +
+                              'password=${_passwordController.text.isEmpty}, ' +
+                              'phone=${_phoneNumberController.text.isEmpty}',
                         );
                         return;
                       }
@@ -342,6 +232,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       final userData = {
                         'username': _usernameController.text,
                         'email': _emailController.text,
+                        'phoneNumber': _phoneNumberController.text,
                         'password': _passwordController.text,
                       };
 
@@ -356,11 +247,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                         if (response.isSuccess) {
                           // Afficher un message de succès
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Inscription réussie !'),
-                              backgroundColor: Colors.green,
-                            ),
+                          AlertUtils.showSuccess(
+                            context: context,
+                            message: 'Inscription réussie !',
+                            debugDetails: 'Utilisateur inscrit avec succès: ' +
+                                'username=${_usernameController.text}, ' +
+                                'email=${_emailController.text}, ' +
+                                'réponse API=${response.data}',
                           );
 
                           // Naviguer vers l'écran de vérification OTP
@@ -372,23 +265,30 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           );
                         } else {
                           // Afficher le message d'erreur
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(response.error ?? 'Erreur d\'inscription'),
-                              backgroundColor: Colors.red,
-                            ),
+                          AlertUtils.showError(
+                            context: context,
+                            message: response.error ?? 'Erreur d\'inscription',
+                            debugDetails: 'Échec d\'inscription: ' +
+                                'username=${_usernameController.text}, ' +
+                                'email=${_emailController.text}, ' +
+                                'erreur API=${response.error}',
                           );
+                          Navigator.push(context, MaterialPageRoute(
+                            builder: (context) => const DeviceSelectionScreen(),
+                          ));
                         }
                       } catch (e) {
                         // Fermer le dialogue de chargement
                         Navigator.pop(context);
                         
                         // Afficher l'erreur
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Erreur: $e'),
-                            backgroundColor: Colors.red,
-                          ),
+                        AlertUtils.showError(
+                          context: context,
+                          message: 'Une erreur est survenue lors de l\'inscription',
+                          debugDetails: 'Exception lors de l\'inscription: ' +
+                              'username=${_usernameController.text}, ' +
+                              'email=${_emailController.text}, ' +
+                              'exception=$e',
                         );
                       }
                     },
@@ -448,11 +348,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                   ),
                 ),
+                
+                // Espace supplémentaire en bas pour le défilement
+                const SizedBox(height: 40),
               ],
             ),
           ),
-        ],
-      ),
+        ),
+      ]),
     );
   }
 }

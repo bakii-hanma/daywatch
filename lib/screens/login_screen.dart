@@ -5,6 +5,7 @@ import '../design_system/spacing.dart';
 import '../design_system/typography.dart';
 import '../widgets/daywatch_logo.dart';
 import '../widgets/common/animated_poster_background.dart';
+import '../utils/alert_utils.dart';
 import 'otp_verification_screen.dart';
 import 'register_screen.dart';
 import 'forgot_password_screen.dart';
@@ -27,25 +28,43 @@ class _LoginScreenState extends State<LoginScreen> {
     final username = _usernameController.text.trim();
     final password = _passwordController.text;
     if (username.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Veuillez remplir tous les champs.')),
+      AlertUtils.showError(
+        context: context,
+        message: 'Veuillez remplir tous les champs.',
+        debugDetails: 'Tentative de connexion avec des champs vides: username=${username.isEmpty}, password=${password.isEmpty}',
       );
       return;
     }
     setState(() => _isLoading = true);
-    final response = await ApiClient.loginUser<Map<String, dynamic>>(
-      body: {'email': username, 'password': password},
-    );
-    setState(() => _isLoading = false);
-    if (response.isSuccess && response.data != null) {
-      // Connexion réussie, naviguer vers l'écran suivant (exemple : OTP)
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const OtpVerificationScreen()),
+    try {
+      final response = await ApiClient.loginUser<Map<String, dynamic>>(
+        body: {'email': username, 'password': password},
       );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(response.error ?? 'Erreur de connexion.')),
+      setState(() => _isLoading = false);
+      if (response.isSuccess && response.data != null) {
+        // Connexion réussie, naviguer vers l'écran suivant (exemple : OTP)
+        AlertUtils.showSuccess(
+          context: context,
+          message: 'Connexion réussie !',
+          debugDetails: 'Utilisateur connecté: $username, données: ${response.data}',
+        );
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const OtpVerificationScreen()),
+        );
+      } else {
+        AlertUtils.showError(
+          context: context,
+          message: response.error ?? 'Erreur de connexion.',
+          debugDetails: 'Échec de connexion pour $username: ${response.error}',
+        );
+      }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      AlertUtils.showError(
+        context: context,
+        message: 'Une erreur est survenue lors de la connexion.',
+        debugDetails: 'Exception lors de la connexion pour $username: $e',
       );
     }
   }

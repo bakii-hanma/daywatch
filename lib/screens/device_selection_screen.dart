@@ -72,28 +72,6 @@ class DeviceSelectionScreen extends StatelessWidget {
                         'DAYWATCH',
                         style: AppTypography.title(AppColors.primary),
                       ),
-                      
-                      // Barre d'état simulée
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: AppColors.getAuthStatusBarColor(isDarkMode),
-                          borderRadius: BorderRadius.circular(15),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.signal_cellular_alt,
-                              color: textColor,
-                              size: 16,
-                            ),
-                            const SizedBox(width: 4),
-                            Icon(Icons.wifi, color: textColor, size: 16),
-                            const SizedBox(width: 4),
-                            Icon(Icons.battery_full, color: textColor, size: 16),
-                          ],
-                        ),
-                      ),
                     ],
                   ),
                 ),

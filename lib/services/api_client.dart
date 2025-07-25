@@ -40,10 +40,10 @@ class ApiClient {
   static String get usersBaseUrl => ServerConfig.usersApiBaseUrl;
 
   /// URL complète pour l'inscription
-  static String get registerUrl => '{$usersBaseUrl}$_registerEndpoint';
+  static String get registerUrl => '$usersBaseUrl$_registerEndpoint';
 
   /// URL complète pour la connexion
-  static String get loginUrl => '{$usersBaseUrl}$_loginEndpoint';
+  static String get loginUrl => '$usersBaseUrl$_loginEndpoint';
 
   /// URLs complètes des endpoints - Films (Radarr) - Pour compatibilité externe
   static String get recentMoviesUrl => '$baseUrl$_moviesRecent';
