@@ -9,10 +9,7 @@ class MovieService {
   static Future<bool> testConnection() async {
     try {
       print('🔗 Test de connexion Radarr vers ${ApiClient.baseUrl}...');
-      final movies = await ApiClient.getRecentMovies<MovieApiModel>(
-        limit: 1,
-        fromJson: (json) => MovieApiModel.fromJson(json),
-      );
+      final movies = await getEssentialMovies(limit: 1);
       return movies.isNotEmpty;
     } catch (e) {
       print('❌ Erreur de connexion Radarr: $e');
@@ -24,7 +21,7 @@ class MovieService {
   static Future<void> diagnoseNetwork() async {
     print('\n🔍 === DIAGNOSTIC RÉSEAU RADARR ===');
     print('📍 URL de base: ${ApiClient.baseUrl}');
-    print('🎯 Endpoint: /api/radarr/movies/recent');
+    print('🎯 Endpoint: /api/radarr/movies/essentials');
 
     try {
       final isConnected = await testConnection();
@@ -37,97 +34,89 @@ class MovieService {
     print('=== FIN DIAGNOSTIC ===\n');
   }
 
-  /// Récupération des films récents
-  static Future<List<MovieApiModel>> getRecentMovies({int limit = 10}) async {
+  /// Récupération des films essentiels (nouvelle route)
+  static Future<List<MovieApiModel>> getEssentialMovies({
+    int limit = 20,
+  }) async {
     try {
-      print('📥 Récupération des films récents (limite: $limit)...');
+      print('📥 Récupération des films essentiels (limite: $limit)...');
 
-      final movies = await ApiClient.getRecentMovies<MovieApiModel>(
-        limit: limit,
-        fromJson: (json) => MovieApiModel.fromJson(json),
-      );
-
-      print('✅ ${movies.length} films récents récupérés avec succès');
-
-      // Debug : afficher les titres
-      if (movies.isNotEmpty) {
-        print('🎬 Films récents récupérés:');
-        for (var movie in movies.take(3)) {
-          print('   - ${movie.title} (${movie.year}) - Note: ${movie.rating}');
-        }
-        if (movies.length > 3) {
-          print('   ... et ${movies.length - 3} autres');
-        }
-      }
-
-      return movies;
-    } catch (e) {
-      print('❌ Exception lors de la récupération des films récents: $e');
-      return [];
-    }
-  }
-
-  /// Récupération des films populaires
-  static Future<List<MovieApiModel>> getPopularMovies({int limit = 10}) async {
-    try {
-      print('📥 Récupération des films populaires (limite: $limit)...');
-
-      final movies = await ApiClient.getPopularMovies<MovieApiModel>(
-        limit: limit,
-        fromJson: (json) => MovieApiModel.fromJson(json),
-      );
-
-      print('✅ ${movies.length} films populaires récupérés avec succès');
-
-      // Debug : afficher les titres
-      if (movies.isNotEmpty) {
-        print('🔥 Films populaires récupérés:');
-        for (var movie in movies.take(3)) {
-          print('   - ${movie.title} (${movie.year}) - Note: ${movie.rating}');
-        }
-        if (movies.length > 3) {
-          print('   ... et ${movies.length - 3} autres');
-        }
-      }
-
-      return movies;
-    } catch (e) {
-      print('❌ Exception lors de la récupération des films populaires: $e');
-      return [];
-    }
-  }
-
-  /// Récupération de tous les films
-  static Future<List<MovieApiModel>> getAllMovies() async {
-    try {
-      print('📥 Récupération de tous les films...');
-
-      final movies = await ApiClient.getAllMovies<MovieApiModel>(
-        fromJson: (json) => MovieApiModel.fromJson(json),
-      );
-
-      print('✅ ${movies.length} films récupérés avec succès');
-      return movies;
-    } catch (e) {
-      print('❌ Exception lors de la récupération de tous les films: $e');
-      return [];
-    }
-  }
-
-  /// Récupération d'un film par son ID
-  static Future<MovieApiModel?> getMovieById(int movieId) async {
-    try {
-      print('📥 Récupération du film ID: $movieId...');
-
-      final response = await ApiClient.getMovieById<MovieApiModel>(
-        movieId,
-        fromJson: (json) => MovieApiModel.fromJson(json),
-      );
+      final endpoint = '/api/radarr/movies/essentials?limit=$limit';
+      final response = await ApiClient.get<dynamic>(endpoint);
 
       if (response.isSuccess && response.data != null) {
-        final movie = response.data!;
-        print('✅ Film récupéré: ${movie.title}');
-        return movie;
+        final responseData = response.data as Map<String, dynamic>;
+        final List<dynamic> moviesData = responseData['data'] ?? [];
+
+        final movies = moviesData
+            .map((json) => MovieApiModel.fromEssentialJson(json))
+            .toList();
+
+        print('✅ ${movies.length} films essentiels récupérés avec succès');
+
+        // Debug : afficher les titres
+        if (movies.isNotEmpty) {
+          print('🎬 Films essentiels récupérés:');
+          for (var movie in movies.take(3)) {
+            print(
+              '   - ${movie.title} (${movie.year}) - Note: ${movie.rating}',
+            );
+          }
+          if (movies.length > 3) {
+            print('   ... et ${movies.length - 3} autres');
+          }
+        }
+
+        return movies;
+      } else {
+        print(
+          '❌ Erreur lors de la récupération des films essentiels: ${response.error}',
+        );
+        return [];
+      }
+    } catch (e) {
+      print('❌ Exception lors de la récupération des films essentiels: $e');
+      return [];
+    }
+  }
+
+  /// Récupération des films récents (alias pour getEssentialMovies)
+  static Future<List<MovieApiModel>> getRecentMovies({int limit = 10}) async {
+    return getEssentialMovies(limit: limit);
+  }
+
+  /// Récupération des films populaires (alias pour getEssentialMovies)
+  static Future<List<MovieApiModel>> getPopularMovies({int limit = 10}) async {
+    return getEssentialMovies(limit: limit);
+  }
+
+  /// Récupération de tous les films (alias pour getEssentialMovies)
+  static Future<List<MovieApiModel>> getAllMovies() async {
+    return getEssentialMovies(
+      limit: 100,
+    ); // Limite élevée pour récupérer tous les films
+  }
+
+  /// Récupération d'un film par son TMDB ID (nouvelle route)
+  static Future<MovieApiModel?> getMovieByTmdbId(int tmdbId) async {
+    try {
+      print('📥 Récupération du film TMDB ID: $tmdbId...');
+
+      final endpoint = '/api/radarr/movies/$tmdbId';
+      final response = await ApiClient.get<dynamic>(endpoint);
+
+      if (response.isSuccess && response.data != null) {
+        final responseData = response.data as Map<String, dynamic>;
+        final movieData = responseData['data'];
+
+        if (movieData != null) {
+          final movie = MovieApiModel.fromJson(movieData);
+          print('✅ Film récupéré: ${movie.title}');
+          return movie;
+        } else {
+          print('❌ Données de film non trouvées dans la réponse');
+          return null;
+        }
       } else {
         print('❌ Erreur lors de la récupération du film: ${response.error}');
         return null;
@@ -138,20 +127,22 @@ class MovieService {
     }
   }
 
-  /// Récupérer les films du box office
+  /// Récupération d'un film par son ID (alias pour getMovieByTmdbId)
+  static Future<MovieApiModel?> getMovieById(int movieId) async {
+    return getMovieByTmdbId(movieId);
+  }
+
+  /// Récupérer les films du box office (utilise getEssentialMovies pour l'instant)
   static Future<List<MovieApiModel>> getBoxOfficeMovies({
     int limit = 10,
   }) async {
     try {
-      print('💰 Récupération des films box office via ApiClient...');
+      print('💰 Récupération des films box office...');
 
-      final boxOfficeMovies = await ApiClient.getBoxOfficeMovies<MovieApiModel>(
-        limit: limit,
-        fromJson: (json) => MovieApiModel.fromJson(json),
-      );
+      final movies = await getEssentialMovies(limit: limit);
 
       // Filtrer le contenu NSFW
-      final filteredMovies = boxOfficeMovies.where((movie) {
+      final filteredMovies = movies.where((movie) {
         final isNsfw = movie.tags.any(
           (tag) =>
               tag.toLowerCase().contains('nsfw') ||
@@ -162,7 +153,7 @@ class MovieService {
       }).toList();
 
       print('📊 Résultats finaux box office:');
-      print('   - Total récupéré: ${boxOfficeMovies.length}');
+      print('   - Total récupéré: ${movies.length}');
       print('   - Après filtrage NSFW: ${filteredMovies.length}');
       for (final movie in filteredMovies.take(3)) {
         final earnings = movie.boxOffice != null

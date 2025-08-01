@@ -450,7 +450,6 @@ class _SeasonDetailScreenState extends State<SeasonDetailScreen>
     print('   - Title: ${episode.title}');
     print('   - hasFile: ${episode.hasFile}');
     print('   - file: ${episode.file}');
-    print('   - episodeFile: ${episode.episodeFile}');
 
     // Essayer de récupérer le chemin depuis différentes sources
     String? videoPath;
@@ -458,10 +457,6 @@ class _SeasonDetailScreenState extends State<SeasonDetailScreen>
     if (episode.file != null && episode.file!.fullPath.isNotEmpty) {
       videoPath = episode.file!.fullPath;
       print('✅ Chemin trouvé dans file.fullPath: $videoPath');
-    } else if (episode.episodeFile != null &&
-        episode.episodeFile!.path.isNotEmpty) {
-      videoPath = episode.episodeFile!.path;
-      print('✅ Chemin trouvé dans episodeFile.path: $videoPath');
     } else {
       print('❌ Aucun chemin de fichier trouvé');
       _showErrorDialog('Aucun fichier vidéo disponible pour cet épisode.');

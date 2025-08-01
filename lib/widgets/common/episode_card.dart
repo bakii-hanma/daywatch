@@ -33,7 +33,9 @@ class EpisodeCard extends StatelessWidget {
     Key? key,
     required this.episode,
     required this.isDarkMode,
-  }) : imagePath = episode!.getMainImage(),
+  }) : imagePath =
+           episode!.stillPath ??
+           (episode!.images.isNotEmpty ? episode!.images.first.remoteUrl : ''),
        title = episode!.title,
        duration = '${episode!.runtime} min',
        description = episode!.overview,

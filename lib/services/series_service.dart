@@ -138,6 +138,148 @@ class SeriesService {
     }
   }
 
+  /// Récupération d'une série par son ID avec tous ses épisodes inclus
+  static Future<SeriesApiModel?> getSeriesWithEpisodes(String seriesId) async {
+    try {
+      print(
+        '📥 Récupération de la série ID: $seriesId avec tous ses épisodes...',
+      );
+
+      final response = await ApiClient.getSeriesById<SeriesApiModel>(
+        seriesId,
+        fromJson: (json) => SeriesApiModel.fromJson(json),
+      );
+
+      if (response.isSuccess && response.data != null) {
+        final series = response.data!;
+        print('✅ Série récupérée: ${series.title}');
+
+        // Vérifier si les épisodes sont déjà inclus dans la réponse
+        if (series.episodesBySeason.isNotEmpty) {
+          print(
+            '📺 Épisodes déjà inclus dans la réponse: ${series.episodesBySeason.length} saisons',
+          );
+          return series;
+        }
+
+        // Si les épisodes ne sont pas inclus, les récupérer séparément
+        print('📥 Récupération des épisodes séparément...');
+        final allEpisodes = await getAllSeriesEpisodes(seriesId: seriesId);
+
+        if (allEpisodes.isNotEmpty) {
+          // Organiser les épisodes par saison
+          final Map<int, List<EpisodeApiModel>> episodesBySeason = {};
+          for (var episode in allEpisodes) {
+            final seasonNumber = episode.seasonNumber;
+            if (!episodesBySeason.containsKey(seasonNumber)) {
+              episodesBySeason[seasonNumber] = [];
+            }
+            episodesBySeason[seasonNumber]!.add(episode);
+          }
+
+          // Trier les épisodes par numéro dans chaque saison
+          for (var seasonNumber in episodesBySeason.keys) {
+            episodesBySeason[seasonNumber]!.sort(
+              (a, b) => a.episodeNumber.compareTo(b.episodeNumber),
+            );
+          }
+
+          // Créer une nouvelle instance de la série avec les épisodes
+          final enrichedSeries = SeriesApiModel(
+            id: series.id,
+            tmdbId: series.tmdbId,
+            title: series.title,
+            sortTitle: series.sortTitle,
+            year: series.year,
+            status: series.status,
+            overview: series.overview,
+            network: series.network,
+            airTime: series.airTime,
+            poster: series.poster,
+            banner: series.banner,
+            fanart: series.fanart,
+            rating: series.rating,
+            certification: series.certification,
+            genres: series.genres,
+            runtime: series.runtime,
+            premiered: series.premiered,
+            ended: series.ended,
+            isAvailable: series.isAvailable,
+            monitored: series.monitored,
+            path: series.path,
+            episodeStats: series.episodeStats,
+            seasonInfo: series.seasonInfo,
+            imdbId: series.imdbId,
+            tvdbId: series.tvdbId,
+            tvMazeId: series.tvMazeId,
+            cast: series.cast,
+            gallery: series.gallery,
+            episodesBySeason: episodesBySeason,
+          );
+
+          print(
+            '✅ Série enrichie avec ${allEpisodes.length} épisodes répartis sur ${episodesBySeason.length} saisons',
+          );
+          return enrichedSeries;
+        } else {
+          print('⚠️ Aucun épisode trouvé pour la série "${series.title}"');
+          return series;
+        }
+      } else {
+        print(
+          '❌ Erreur lors de la récupération de la série: ${response.error}',
+        );
+        return null;
+      }
+    } catch (e) {
+      print('❌ Exception lors de la récupération de la série: $e');
+      return null;
+    }
+  }
+
+  /// Récupération d'un épisode spécifique avec toutes ses données
+  static Future<EpisodeApiModel?> getEpisodeById({
+    required String seriesId,
+    required int seasonNumber,
+    required int episodeNumber,
+  }) async {
+    try {
+      print(
+        '📥 Récupération de l\'épisode S${seasonNumber}E${episodeNumber} de la série $seriesId...',
+      );
+
+      // D'abord récupérer la série avec tous ses épisodes
+      final series = await getSeriesWithEpisodes(seriesId);
+      if (series == null) {
+        print('❌ Série non trouvée');
+        return null;
+      }
+
+      // Chercher l'épisode dans les épisodes de la saison
+      final seasonEpisodes = series.getEpisodesForSeason(seasonNumber);
+      final episode = seasonEpisodes
+          .where((e) => e.episodeNumber == episodeNumber)
+          .firstOrNull;
+
+      if (episode != null) {
+        print('✅ Épisode trouvé: ${episode.title}');
+        print('   📁 Fichier: ${episode.file?.fileName ?? 'Non disponible'}');
+        print('   🎬 Qualité: ${episode.getQuality()}');
+        print('   📊 Taille: ${episode.getFileSize()}');
+        print(
+          '   🔗 URL de streaming: ${episode.getStreamUrl() ?? 'Non disponible'}',
+        );
+        return episode;
+      } else {
+        print('❌ Épisode S${seasonNumber}E${episodeNumber} non trouvé');
+        return null;
+      }
+    } catch (e) {
+      print('❌ Exception lors de la récupération de l\'épisode: $e');
+      return null;
+    }
+  }
+
   /// Récupération des épisodes d'une saison
   static Future<List<EpisodeApiModel>> getSeasonEpisodes({
     required String seriesId,
@@ -236,7 +378,8 @@ class SeriesService {
               print('   - Épisode ${episode.episodeNumber}: ${episode.title}');
               print('     hasFile: ${episode.hasFile}');
               print('     file: ${episode.file?.fullPath ?? 'null'}');
-              print('     episodeFile: ${episode.episodeFile?.path ?? 'null'}');
+              print('     quality: ${episode.getQuality()}');
+              print('     size: ${episode.getFileSize()}');
             }
             if (episodes.length > 3) {
               print('   ... et ${episodes.length - 3} autres');
@@ -474,6 +617,45 @@ class SeriesService {
     } catch (e) {
       print('❌ Erreur lors de l\'enrichissement de la série: $e');
       return series; // Retourner la série originale en cas d'erreur
+    }
+  }
+
+  /// Diagnostic pour un épisode spécifique
+  static Future<void> diagnoseEpisode(String seriesId, int episodeId) async {
+    try {
+      print('🔍 === DIAGNOSTIC ÉPISODE $episodeId ===');
+
+      // Récupérer la série avec tous ses épisodes
+      final series = await getSeriesWithEpisodes(seriesId);
+      if (series == null) {
+        print('❌ Série non trouvée');
+        return;
+      }
+
+      // Chercher l'épisode spécifique
+      EpisodeApiModel? targetEpisode;
+      for (var seasonEpisodes in series.episodesBySeason.values) {
+        targetEpisode = seasonEpisodes
+            .where((e) => e.id == episodeId)
+            .firstOrNull;
+        if (targetEpisode != null) break;
+      }
+
+      if (targetEpisode != null) {
+        print('✅ Épisode $episodeId trouvé: ${targetEpisode.title}');
+        print('   - hasFile: ${targetEpisode.hasFile}');
+        print('   - file: ${targetEpisode.file}');
+        print('   - file?.fullPath: ${targetEpisode.file?.fullPath}');
+        print('   - file?.fileName: ${targetEpisode.file?.fileName}');
+        print('   - getStreamUrl(): ${targetEpisode.getStreamUrl()}');
+        print('   - getFilePath(): ${targetEpisode.getFilePath()}');
+      } else {
+        print('❌ Épisode $episodeId non trouvé');
+      }
+
+      print('=== FIN DIAGNOSTIC ===');
+    } catch (e) {
+      print('❌ Erreur lors du diagnostic: $e');
     }
   }
 }

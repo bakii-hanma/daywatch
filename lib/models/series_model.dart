@@ -164,6 +164,13 @@ class SeriesApiModel {
               'rating': episodeData['ratings']?['value'] ?? 0.0,
               'hasFile': episodeData['hasFile'] ?? false,
               'monitored': episodeData['monitored'] ?? false,
+              'unverifiedSceneNumbering':
+                  episodeData['unverifiedSceneNumbering'] ?? false,
+              'ratings': episodeData['ratings'] ?? {'value': 0.0},
+              'file': episodeData['file'], // Inclure les données de fichier
+              'metadata': episodeData['metadata'],
+              'tmdbData': episodeData['tmdbData'],
+              'gallery': episodeData['gallery'],
               'images':
                   episodeData['gallery']?['stills']
                       ?.map(
@@ -659,6 +666,23 @@ class EpisodeTmdbData {
       guestStars: json['guestStars'] ?? [],
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'tmdbId': tmdbId,
+      'name': name,
+      'overview': overview,
+      'airDate': airDate,
+      'episodeNumber': episodeNumber,
+      'seasonNumber': seasonNumber,
+      'stillPath': stillPath,
+      'voteAverage': voteAverage,
+      'voteCount': voteCount,
+      'runtime': runtime,
+      'crew': crew,
+      'guestStars': guestStars,
+    };
+  }
 }
 
 // Modèle pour les informations de fichier d'épisode
@@ -671,6 +695,8 @@ class EpisodeFileInfo {
   final double sizeGB; // Taille en GB
   final EpisodeQuality quality;
   final EpisodeMediaInfo mediaInfo;
+  final String? downloadUrl; // URL de téléchargement
+  final String? streamUrl; // URL de streaming
 
   EpisodeFileInfo({
     required this.id,
@@ -681,6 +707,8 @@ class EpisodeFileInfo {
     required this.sizeGB,
     required this.quality,
     required this.mediaInfo,
+    this.downloadUrl,
+    this.streamUrl,
   });
 
   factory EpisodeFileInfo.fromJson(Map<String, dynamic> json) {
@@ -693,7 +721,24 @@ class EpisodeFileInfo {
       sizeGB: (json['sizeGB'] ?? 0.0).toDouble(),
       quality: EpisodeQuality.fromJson(json['quality'] ?? {}),
       mediaInfo: EpisodeMediaInfo.fromJson(json['mediaInfo'] ?? {}),
+      downloadUrl: json['downloadUrl'],
+      streamUrl: json['streamUrl'],
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'fileName': fileName,
+      'fullPath': fullPath,
+      'relativePath': relativePath,
+      'size': size,
+      'sizeGB': sizeGB,
+      'quality': quality.toJson(),
+      'mediaInfo': mediaInfo.toJson(),
+      'downloadUrl': downloadUrl,
+      'streamUrl': streamUrl,
+    };
   }
 }
 
@@ -708,6 +753,10 @@ class EpisodeQuality {
       name: json['name'] ?? '',
       resolution: json['resolution'] ?? '',
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {'name': name, 'resolution': resolution};
   }
 }
 
@@ -741,6 +790,47 @@ class EpisodeMediaInfo {
       subtitles: List<String>.from(json['subtitles'] ?? []),
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'videoCodec': videoCodec,
+      'audioCodec': audioCodec,
+      'resolution': resolution,
+      'videoFps': videoFps,
+      'audioChannels': audioChannels,
+      'audioLanguages': audioLanguages,
+      'subtitles': subtitles,
+    };
+  }
+}
+
+// Modèle pour les images d'épisode
+class EpisodeImage {
+  final String coverType;
+  final String remoteUrl;
+  final String? localUrl;
+
+  EpisodeImage({
+    required this.coverType,
+    required this.remoteUrl,
+    this.localUrl,
+  });
+
+  factory EpisodeImage.fromJson(Map<String, dynamic> json) {
+    return EpisodeImage(
+      coverType: json['coverType'] ?? '',
+      remoteUrl: json['remoteUrl'] ?? '',
+      localUrl: json['localUrl'],
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'coverType': coverType,
+      'remoteUrl': remoteUrl,
+      'localUrl': localUrl,
+    };
+  }
 }
 
 // Modèle pour les épisodes de l'API
@@ -757,13 +847,14 @@ class EpisodeApiModel {
   final double rating;
   final bool hasFile;
   final bool monitored;
-  final String? absoluteEpisodeNumber;
-  final String? unverifiedSceneNumbering;
-  final EpisodeFile? episodeFile;
+  final bool unverifiedSceneNumbering;
+  final EpisodeRatings ratings;
   final List<EpisodeImage> images;
-  final String? stillPath; // Nouveau champ pour la nouvelle structure
-  final EpisodeTmdbData? tmdbData; // Données TMDB avec informations en français
-  final EpisodeFileInfo? file; // Informations du fichier d'épisode
+  final EpisodeFileInfo? file;
+  final EpisodeMetadata? metadata;
+  final EpisodeTmdbData? tmdbData;
+  final EpisodeGallery? gallery;
+  final String? stillPath;
 
   EpisodeApiModel({
     required this.id,
@@ -778,16 +869,24 @@ class EpisodeApiModel {
     required this.rating,
     required this.hasFile,
     required this.monitored,
-    this.absoluteEpisodeNumber,
-    this.unverifiedSceneNumbering,
-    this.episodeFile,
+    required this.unverifiedSceneNumbering,
+    required this.ratings,
     required this.images,
-    this.stillPath,
-    this.tmdbData,
     this.file,
+    this.metadata,
+    this.tmdbData,
+    this.gallery,
+    this.stillPath,
   });
 
   factory EpisodeApiModel.fromJson(Map<String, dynamic> json) {
+    // Debug: afficher toutes les clés disponibles
+    print('🔍 Données JSON de l\'épisode ${json['episodeNumber']}:');
+    print('   - Clés disponibles: ${json.keys.toList()}');
+    print('   - hasFile: ${json['hasFile']}');
+    print('   - file: ${json['file']}');
+    print('   - episodeFile: ${json['episodeFile']}');
+
     // Extraire les données TMDB si disponibles
     EpisodeTmdbData? tmdbData;
     if (json['tmdbData'] != null) {
@@ -839,19 +938,6 @@ class EpisodeApiModel {
       }
     }
 
-    // Debug: afficher la structure des données de l'épisode
-    print('🔍 Structure des données de l\'épisode:');
-    print('   hasFile: ${json['hasFile']}');
-    print('   episodeFile: ${json['episodeFile']}');
-    print('   file: ${json['file']}');
-    print('   data: ${json['data']}');
-
-    // Debug: afficher toutes les clés disponibles
-    print('🔑 Toutes les clés disponibles:');
-    json.keys.forEach((key) {
-      print('   - $key: ${json[key]}');
-    });
-
     // Extraire les informations du fichier d'épisode
     EpisodeFileInfo? episodeFile;
 
@@ -861,25 +947,40 @@ class EpisodeApiModel {
     if (json['file'] != null) {
       fileData = json['file'] as Map<String, dynamic>;
       print('📁 Données trouvées dans "file"');
-    } else if (json['data'] != null && json['data']['file'] != null) {
-      fileData = json['data']['file'] as Map<String, dynamic>;
-      print('📁 Données trouvées dans "data.file"');
+      print('   - Clés du fichier: ${fileData.keys.toList()}');
     } else if (json['episodeFile'] != null) {
       fileData = json['episodeFile'] as Map<String, dynamic>;
       print('📁 Données trouvées dans "episodeFile"');
+      print('   - Clés du fichier: ${fileData.keys.toList()}');
     }
 
     if (fileData != null) {
-      episodeFile = EpisodeFileInfo.fromJson(fileData);
-      print('📁 Fichier d\'épisode trouvé: ${episodeFile.fileName}');
-      print('   📊 Taille: ${episodeFile.sizeGB}GB');
-      print(
-        '   🎬 Qualité: ${episodeFile.quality.name} (${episodeFile.quality.resolution}p)',
-      );
-      print('   📂 Chemin complet: ${episodeFile.fullPath}');
-      print('   📂 Chemin relatif: ${episodeFile.relativePath}');
+      try {
+        episodeFile = EpisodeFileInfo.fromJson(fileData);
+        print('📁 Fichier d\'épisode trouvé: ${episodeFile.fileName}');
+        print('   📊 Taille: ${episodeFile.sizeGB}GB');
+        print(
+          '   🎬 Qualité: ${episodeFile.quality.name} (${episodeFile.quality.resolution}p)',
+        );
+        print('   📂 Chemin complet: ${episodeFile.fullPath}');
+      } catch (e) {
+        print('❌ Erreur lors du parsing du fichier: $e');
+        print('   - Données brutes: $fileData');
+      }
     } else {
       print('❌ Aucune donnée de fichier trouvée');
+    }
+
+    // Extraire les métadonnées
+    EpisodeMetadata? metadata;
+    if (json['metadata'] != null) {
+      metadata = EpisodeMetadata.fromJson(json['metadata']);
+    }
+
+    // Extraire la galerie
+    EpisodeGallery? gallery;
+    if (json['gallery'] != null) {
+      gallery = EpisodeGallery.fromJson(json['gallery']);
     }
 
     // Extraire les images d'épisode
@@ -894,33 +995,20 @@ class EpisodeApiModel {
     }
 
     // Traiter les images depuis la galerie (nouvelle structure)
-    if (json['gallery'] != null && json['gallery']['stills'] != null) {
-      final List<dynamic> galleryStills =
-          json['gallery']['stills'] as List<dynamic>;
-
-      for (var still in galleryStills) {
-        final String filePath = still['filePath'] ?? still['url'] ?? '';
-        final String thumbUrl = still['thumbUrl'] ?? '';
-
-        if (filePath.isNotEmpty) {
-          episodeImages.add(
-            EpisodeImage(
-              coverType: 'still',
-              remoteUrl: filePath,
-              localUrl: thumbUrl.isNotEmpty ? thumbUrl : null,
-            ),
-          );
-        }
+    if (gallery != null && gallery.stills.isNotEmpty) {
+      for (var still in gallery.stills) {
+        episodeImages.add(
+          EpisodeImage(
+            coverType: 'still',
+            remoteUrl: still.filePath,
+            localUrl: still.thumbUrl.isNotEmpty ? still.thumbUrl : null,
+          ),
+        );
       }
 
       // Si stillPath n'est pas défini, prendre la première image de la galerie
       if (stillPath == null || stillPath.isEmpty) {
-        if (galleryStills.isNotEmpty) {
-          stillPath =
-              galleryStills.first['filePath'] ??
-              galleryStills.first['url'] ??
-              '';
-        }
+        stillPath = gallery.stills.first.filePath;
       }
     }
 
@@ -944,15 +1032,14 @@ class EpisodeApiModel {
       rating: episodeRating,
       hasFile: json['hasFile'] ?? false,
       monitored: json['monitored'] ?? false,
-      absoluteEpisodeNumber: json['absoluteEpisodeNumber']?.toString(),
-      unverifiedSceneNumbering: json['unverifiedSceneNumbering']?.toString(),
-      episodeFile: json['episodeFile'] != null
-          ? EpisodeFile.fromJson(json['episodeFile'])
-          : null,
+      unverifiedSceneNumbering: json['unverifiedSceneNumbering'] ?? false,
+      ratings: EpisodeRatings.fromJson(json['ratings'] ?? {}),
       images: episodeImages,
-      stillPath: stillPath,
-      tmdbData: tmdbData,
       file: episodeFile,
+      metadata: metadata,
+      tmdbData: tmdbData,
+      gallery: gallery,
+      stillPath: stillPath,
     );
   }
 
@@ -970,255 +1057,152 @@ class EpisodeApiModel {
       'rating': rating,
       'hasFile': hasFile,
       'monitored': monitored,
-      'absoluteEpisodeNumber': absoluteEpisodeNumber,
       'unverifiedSceneNumbering': unverifiedSceneNumbering,
-      'episodeFile': episodeFile?.toJson(),
+      'ratings': ratings.toJson(),
       'images': images.map((image) => image.toJson()).toList(),
+      'file': file?.toJson(),
+      'metadata': metadata?.toJson(),
+      'tmdbData': tmdbData?.toJson(),
+      'gallery': gallery?.toJson(),
       'stillPath': stillPath,
-      'tmdbData': tmdbData != null
-          ? {
-              'tmdbId': tmdbData!.tmdbId,
-              'name': tmdbData!.name,
-              'overview': tmdbData!.overview,
-              'airDate': tmdbData!.airDate,
-              'episodeNumber': tmdbData!.episodeNumber,
-              'seasonNumber': tmdbData!.seasonNumber,
-              'stillPath': tmdbData!.stillPath,
-              'voteAverage': tmdbData!.voteAverage,
-              'voteCount': tmdbData!.voteCount,
-              'runtime': tmdbData!.runtime,
-              'crew': tmdbData!.crew,
-              'guestStars': tmdbData!.guestStars,
-            }
-          : null,
-      'file': file != null
-          ? {
-              'id': file!.id,
-              'fileName': file!.fileName,
-              'sizeGB': file!.sizeGB,
-              'quality': {
-                'name': file!.quality.name,
-                'resolution': file!.quality.resolution,
-              },
-              'mediaInfo': {
-                'videoCodec': file!.mediaInfo.videoCodec,
-                'audioCodec': file!.mediaInfo.audioCodec,
-                'resolution': file!.mediaInfo.resolution,
-                'videoFps': file!.mediaInfo.videoFps,
-                'audioChannels': file!.mediaInfo.audioChannels,
-                'audioLanguages': file!.mediaInfo.audioLanguages,
-                'subtitles': file!.mediaInfo.subtitles,
-              },
-              'fullPath': file!.fullPath,
-              'relativePath': file!.relativePath,
-              'size': file!.size,
-            }
-          : null,
     };
   }
 
-  // Méthode pour convertir vers EpisodeModel
+  // Méthode pour obtenir l'URL de streaming
+  String? getStreamUrl() {
+    return file?.downloadUrl ?? file?.streamUrl;
+  }
+
+  // Méthode pour obtenir le chemin du fichier
+  String? getFilePath() {
+    return file?.fullPath;
+  }
+
+  // Méthode pour vérifier si l'épisode est disponible
+  bool isAvailable() {
+    return hasFile && file != null;
+  }
+
+  // Méthode pour obtenir la qualité de l'épisode
+  String getQuality() {
+    return file?.quality.name ?? 'Inconnue';
+  }
+
+  // Méthode pour obtenir la taille du fichier
+  String getFileSize() {
+    if (file != null) {
+      return '${file!.sizeGB.toStringAsFixed(2)} GB';
+    }
+    return 'Inconnue';
+  }
+
+  // Méthode pour convertir en EpisodeModel
   EpisodeModel toEpisodeModel() {
-    String imagePath = '';
-
-    // Priorité 1: stillPath (nouvelle structure)
-    if (stillPath != null && stillPath!.isNotEmpty) {
-      imagePath = stillPath!;
-      print('📸 Épisode $episodeNumber: Utilisation du stillPath: $imagePath');
-    }
-    // Priorité 2: images du modèle (chercher une image de type still ou screenshot)
-    else if (images.isNotEmpty) {
-      // Chercher une image de type still en priorité
-      final still = images.where((img) => img.coverType == 'still').firstOrNull;
-      if (still != null && still.remoteUrl.isNotEmpty) {
-        imagePath = still.remoteUrl;
-        print(
-          '📸 Épisode $episodeNumber: Utilisation d\'une image still: $imagePath',
-        );
-      } else {
-        // Fallback sur screenshot
-        final screenshot = images
-            .where((img) => img.coverType == 'screenshot')
-            .firstOrNull;
-        if (screenshot != null && screenshot.remoteUrl.isNotEmpty) {
-          imagePath = screenshot.remoteUrl;
-          print(
-            '📸 Épisode $episodeNumber: Utilisation d\'une image screenshot: $imagePath',
-          );
-        } else {
-          // Prendre la première image disponible
-          final firstImage = images.firstWhere(
-            (img) => img.remoteUrl.isNotEmpty,
-            orElse: () => EpisodeImage(coverType: '', remoteUrl: ''),
-          );
-          if (firstImage.remoteUrl.isNotEmpty) {
-            imagePath = firstImage.remoteUrl;
-            print(
-              '📸 Épisode $episodeNumber: Utilisation de la première image disponible: $imagePath',
-            );
-          }
-        }
-      }
-    }
-
-    if (imagePath.isEmpty) {
-      print('⚠️ Épisode $episodeNumber: Aucune image trouvée');
-    }
-
     return EpisodeModel(
       id: id.toString(),
       title: title,
-      imagePath: imagePath,
-      duration: '${runtime} min',
+      imagePath: stillPath ?? (images.isNotEmpty ? images.first.remoteUrl : ''),
+      duration: runtime > 0 ? '${runtime} min' : 'Inconnue',
       description: overview,
       episodeNumber: episodeNumber,
       rating: rating,
     );
   }
+}
 
-  // Méthode pour récupérer l'image principale de l'épisode
-  String getMainImage() {
-    // Priorité 1: stillPath
-    if (stillPath != null && stillPath!.isNotEmpty) {
-      return stillPath!;
-    }
+// Modèle pour les notes d'un épisode
+class EpisodeRatings {
+  final double value;
 
-    // Priorité 2: image de type still
-    final still = images.where((img) => img.coverType == 'still').firstOrNull;
-    if (still != null && still.remoteUrl.isNotEmpty) {
-      return still.remoteUrl;
-    }
+  EpisodeRatings({required this.value});
 
-    // Priorité 3: image de type screenshot
-    final screenshot = images
-        .where((img) => img.coverType == 'screenshot')
-        .firstOrNull;
-    if (screenshot != null && screenshot.remoteUrl.isNotEmpty) {
-      return screenshot.remoteUrl;
-    }
-
-    // Priorité 4: première image disponible
-    final firstImage = images.firstWhere(
-      (img) => img.remoteUrl.isNotEmpty,
-      orElse: () => EpisodeImage(coverType: '', remoteUrl: ''),
-    );
-
-    return firstImage.remoteUrl;
+  factory EpisodeRatings.fromJson(Map<String, dynamic> json) {
+    return EpisodeRatings(value: (json['value'] ?? 0.0).toDouble());
   }
 
-  // Méthode pour récupérer toutes les images de l'épisode
-  List<String> getAllImages() {
-    List<String> allImages = [];
-
-    // Ajouter stillPath s'il existe
-    if (stillPath != null && stillPath!.isNotEmpty) {
-      allImages.add(stillPath!);
-    }
-
-    // Ajouter toutes les images du tableau images
-    for (var image in images) {
-      if (image.remoteUrl.isNotEmpty && !allImages.contains(image.remoteUrl)) {
-        allImages.add(image.remoteUrl);
-      }
-    }
-
-    return allImages;
+  Map<String, dynamic> toJson() {
+    return {'value': value};
   }
 }
 
-class EpisodeFile {
-  final int id;
-  final int seriesId;
-  final int seasonNumber;
-  final int episodeNumber;
-  final String path;
-  final String relativePath;
-  final String fileName;
-  final int size;
-  final String dateAdded;
-  final String quality;
-  final String qualityVersion;
-  final String releaseGroup;
-  final String sceneName;
+// Modèle pour les métadonnées d'un épisode
+class EpisodeMetadata {
+  final int episodeFileId;
+  final String lastSearchTime;
 
-  EpisodeFile({
-    required this.id,
-    required this.seriesId,
-    required this.seasonNumber,
-    required this.episodeNumber,
-    required this.path,
-    required this.relativePath,
-    required this.fileName,
-    required this.size,
-    required this.dateAdded,
-    required this.quality,
-    required this.qualityVersion,
-    required this.releaseGroup,
-    required this.sceneName,
+  EpisodeMetadata({required this.episodeFileId, required this.lastSearchTime});
+
+  factory EpisodeMetadata.fromJson(Map<String, dynamic> json) {
+    return EpisodeMetadata(
+      episodeFileId: json['episodeFileId'] ?? 0,
+      lastSearchTime: json['lastSearchTime'] ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {'episodeFileId': episodeFileId, 'lastSearchTime': lastSearchTime};
+  }
+}
+
+// Modèle pour la galerie d'un épisode
+class EpisodeGallery {
+  final List<EpisodeStill> stills;
+
+  EpisodeGallery({required this.stills});
+
+  factory EpisodeGallery.fromJson(Map<String, dynamic> json) {
+    final List<dynamic> stillsData = json['stills'] ?? [];
+    return EpisodeGallery(
+      stills: stillsData.map((still) => EpisodeStill.fromJson(still)).toList(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {'stills': stills.map((still) => still.toJson()).toList()};
+  }
+}
+
+// Modèle pour une image d'épisode
+class EpisodeStill {
+  final String filePath;
+  final String url;
+  final String thumbUrl;
+  final int width;
+  final int height;
+  final double aspectRatio;
+  final double voteAverage;
+
+  EpisodeStill({
+    required this.filePath,
+    required this.url,
+    required this.thumbUrl,
+    required this.width,
+    required this.height,
+    required this.aspectRatio,
+    required this.voteAverage,
   });
 
-  factory EpisodeFile.fromJson(Map<String, dynamic> json) {
-    return EpisodeFile(
-      id: json['id'] ?? 0,
-      seriesId: json['seriesId'] ?? 0,
-      seasonNumber: json['seasonNumber'] ?? 0,
-      episodeNumber: json['episodeNumber'] ?? 0,
-      path: json['path'] ?? '',
-      relativePath: json['relativePath'] ?? '',
-      fileName: json['fileName'] ?? '',
-      size: json['size'] ?? 0,
-      dateAdded: json['dateAdded'] ?? '',
-      quality: json['quality']?['quality']?['name'] ?? '',
-      qualityVersion:
-          json['quality']?['revision']?['version']?.toString() ?? '',
-      releaseGroup: json['releaseGroup'] ?? '',
-      sceneName: json['sceneName'] ?? '',
+  factory EpisodeStill.fromJson(Map<String, dynamic> json) {
+    return EpisodeStill(
+      filePath: json['filePath'] ?? '',
+      url: json['url'] ?? '',
+      thumbUrl: json['thumbUrl'] ?? '',
+      width: json['width'] ?? 0,
+      height: json['height'] ?? 0,
+      aspectRatio: (json['aspectRatio'] ?? 0.0).toDouble(),
+      voteAverage: (json['voteAverage'] ?? 0.0).toDouble(),
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
-      'seriesId': seriesId,
-      'seasonNumber': seasonNumber,
-      'episodeNumber': episodeNumber,
-      'path': path,
-      'relativePath': relativePath,
-      'fileName': fileName,
-      'size': size,
-      'dateAdded': dateAdded,
-      'quality': quality,
-      'qualityVersion': qualityVersion,
-      'releaseGroup': releaseGroup,
-      'sceneName': sceneName,
-    };
-  }
-}
-
-class EpisodeImage {
-  final String coverType;
-  final String remoteUrl;
-  final String? localUrl;
-
-  EpisodeImage({
-    required this.coverType,
-    required this.remoteUrl,
-    this.localUrl,
-  });
-
-  factory EpisodeImage.fromJson(Map<String, dynamic> json) {
-    return EpisodeImage(
-      coverType: json['coverType'] ?? '',
-      remoteUrl: json['remoteUrl'] ?? '',
-      localUrl: json['localUrl'],
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'coverType': coverType,
-      'remoteUrl': remoteUrl,
-      'localUrl': localUrl,
+      'filePath': filePath,
+      'url': url,
+      'thumbUrl': thumbUrl,
+      'width': width,
+      'height': height,
+      'aspectRatio': aspectRatio,
+      'voteAverage': voteAverage,
     };
   }
 }

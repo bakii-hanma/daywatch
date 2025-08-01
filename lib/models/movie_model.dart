@@ -288,6 +288,81 @@ class MovieApiModel {
     );
   }
 
+  // Méthode pour parser les données essentielles (nouvelle structure)
+  factory MovieApiModel.fromEssentialJson(Map<String, dynamic> json) {
+    // Extraire l'année depuis releaseDate
+    int year = 0;
+    if (json['releaseDate'] != null) {
+      final releaseDate = json['releaseDate'] as String;
+      // Essayer d'extraire l'année depuis "25 avril 2012" ou "2012-04-25"
+      final yearMatch = RegExp(r'(\d{4})').firstMatch(releaseDate);
+      if (yearMatch != null) {
+        year = int.tryParse(yearMatch.group(1)!) ?? 0;
+      }
+    }
+
+    // Extraire la durée en minutes depuis "2h 23" ou "1h 57"
+    int runtime = 0;
+    if (json['runtime'] != null) {
+      final runtimeStr = json['runtime'] as String;
+      final hoursMatch = RegExp(r'(\d+)h').firstMatch(runtimeStr);
+      final minutesMatch = RegExp(r'(\d+)').allMatches(runtimeStr);
+
+      int hours = 0;
+      int minutes = 0;
+
+      if (hoursMatch != null) {
+        hours = int.tryParse(hoursMatch.group(1)!) ?? 0;
+      }
+
+      if (minutesMatch.length > 1) {
+        minutes = int.tryParse(minutesMatch.last.group(1)!) ?? 0;
+      }
+
+      runtime = hours * 60 + minutes;
+    }
+
+    // Convertir les genres de List<String> vers List<String>
+    List<String> genres = [];
+    if (json['genres'] != null) {
+      genres = List<String>.from(json['genres']);
+    }
+
+    return MovieApiModel(
+      id: json['id'] ?? 0,
+      tmdbId: json['tmdbId'] ?? 0,
+      title: json['title'] ?? '',
+      originalTitle: json['originalTitle'] ?? '',
+      overview: '', // Pas d'overview dans les données essentielles
+      year: year,
+      rating: _toDouble(json['rating']) ?? 0.0,
+      imdbRating: null,
+      tmdbRating: null,
+      popularity: 0.0, // Pas de popularité dans les données essentielles
+      runtime: runtime,
+      certification: null,
+      isAvailable: json['isAvailable'] ?? false,
+      downloaded:
+          false, // Pas d'info de téléchargement dans les données essentielles
+      monitored:
+          false, // Pas d'info de monitoring dans les données essentielles
+      images: MovieImages(poster: json['poster'], backdrop: null, banner: null),
+      mediaInfo: ExtendedMovieMediaInfo.empty(),
+      releaseInfo: MovieReleaseInfo.empty(),
+      genres: genres,
+      studio: null,
+      website: null,
+      youTubeTrailerId: null,
+      collection: null,
+      tags: [], // Pas de tags dans les données essentielles
+      similarMovies: [],
+      cast: null,
+      gallery: null,
+      boxOffice: null,
+      boxOfficeRank: null,
+    );
+  }
+
   // Méthode pour convertir vers l'ancien modèle pour compatibilité
   MovieModel toMovieModel() {
     return MovieModel(
@@ -414,6 +489,16 @@ class MovieReleaseInfo {
       digitalRelease: json['digitalRelease'],
       physicalRelease: json['physicalRelease'],
       status: json['status'],
+    );
+  }
+
+  // Méthode pour créer une instance vide
+  static MovieReleaseInfo empty() {
+    return const MovieReleaseInfo(
+      inCinemas: null,
+      digitalRelease: null,
+      physicalRelease: null,
+      status: null,
     );
   }
 }
@@ -711,6 +796,30 @@ class ExtendedMovieMediaInfo extends MovieMediaInfo {
       languages: (json['languages'] as List? ?? [])
           .map((item) => Language.fromJson(item))
           .toList(),
+    );
+  }
+
+  // Méthode pour créer une instance vide
+  static ExtendedMovieMediaInfo empty() {
+    return ExtendedMovieMediaInfo(
+      path: null,
+      folderName: null,
+      quality: null,
+      sizeOnDisk: 0,
+      format: null,
+      resolution: null,
+      isStreamable: false,
+      videoCodec: null,
+      audioCodec: null,
+      fileName: null,
+      fullPath: null,
+      relativePath: null,
+      fileSize: 0,
+      fileDateAdded: null,
+      streamUrl: null,
+      qualityDetails: null,
+      technicalInfo: null,
+      languages: const [],
     );
   }
 }
