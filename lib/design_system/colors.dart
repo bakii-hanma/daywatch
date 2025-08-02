@@ -106,13 +106,13 @@ class AppColors {
   // Couleurs pour les champs de formulaire d'authentification
   static Color getAuthFieldFillColor(bool isDarkMode) {
     return isDarkMode
-        ? Colors.white.withOpacity(0.1)
+        ? Colors.white.withOpacity(0.3)
         : Colors.black.withOpacity(0.05);
   }
 
   static Color getAuthFieldBorderColor(bool isDarkMode) {
     return isDarkMode
-        ? Colors.white.withOpacity(0.3)
+        ? Colors.white.withOpacity(0.8)
         : Colors.black.withOpacity(0.2);
   }
 

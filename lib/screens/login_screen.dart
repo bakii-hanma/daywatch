@@ -12,6 +12,7 @@ import 'forgot_password_screen.dart';
 import '../services/api_client.dart';
 import '../services/user_storage_service.dart';
 import 'home_screen.dart';
+import '../widgets/common/custom_text_field.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -216,100 +217,23 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 32),
 
                 // Champ Nom d'utilisateur
-                Text(
-                  'Nom d\'utilisateur ou email',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: textColor,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
+                CustomTextField(
                   controller: _usernameController,
-                  style: TextStyle(color: Colors.black),
-                  decoration: InputDecoration(
-                    hintText: 'daywatcher@gmail.com',
-                    hintStyle: TextStyle(
-                      color: const Color.fromARGB(110, 0, 0, 0),
-                    ),
-                    filled: true,
-                    fillColor: const Color.fromARGB(190, 255, 255, 255),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(
-                        AppSpacing.radiusSmall,
-                      ),
-                      borderSide: BorderSide(
-                        color: AppColors.getAuthFieldBorderColor(isDarkMode),
-                      ),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(
-                        AppSpacing.radiusSmall,
-                      ),
-                      borderSide: BorderSide(
-                        color: AppColors.getAuthFieldBorderColor(isDarkMode),
-                      ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(
-                        AppSpacing.radiusSmall,
-                      ),
-                      borderSide: BorderSide(color: AppColors.primary),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 14,
-                    ),
-                  ),
+                  label: 'Nom d\'utilisateur',
+                  hintText: 'Votre nom d\'utilisateur',
+                  isDarkMode: isDarkMode,
                 ),
+
                 const SizedBox(height: 20),
 
                 // Champ Mot de passe
-                Text(
-                  'Mot de passe',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: textColor,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
+                CustomTextField(
                   controller: _passwordController,
-                  obscureText: true,
-                  style: TextStyle(color: Colors.black),
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: const Color.fromARGB(190, 255, 255, 255),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(
-                        AppSpacing.radiusSmall,
-                      ),
-                      borderSide: BorderSide(
-                        color: AppColors.getAuthFieldBorderColor(isDarkMode),
-                      ),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(
-                        AppSpacing.radiusSmall,
-                      ),
-                      borderSide: BorderSide(
-                        color: AppColors.getAuthFieldBorderColor(isDarkMode),
-                      ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(
-                        AppSpacing.radiusSmall,
-                      ),
-                      borderSide: BorderSide(color: AppColors.primary),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 14,
-                    ),
-                  ),
+                  label: 'Mot de passe',
+                  hintText: 'Votre mot de passe',
+                  isDarkMode: isDarkMode,
                 ),
+
                 const SizedBox(height: 16),
 
                 // Lien mot de passe oublié
