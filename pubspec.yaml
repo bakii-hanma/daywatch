@@ -61,6 +61,12 @@ dependencies:
   # Shimmer - Effet de chargement animé
   shimmer: ^3.0.0
 
+  # SharedPreferences - Stockage de données persistantes
+  shared_preferences: ^2.2.2
+
+  # Image Picker - Sélection d'images depuis la galerie ou la caméra
+  image_picker: ^1.0.4
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

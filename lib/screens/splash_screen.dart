@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../widgets/daywatch_logo.dart';
 import '../design_system/colors.dart';
+import '../services/user_storage_service.dart';
 import 'onboarding_screen.dart';
+import 'home_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -51,14 +53,39 @@ class _SplashScreenState extends State<SplashScreen>
 
     _animationController.forward();
 
-    // Naviguer vers la page principale après 3.5 secondes
-    Future.delayed(const Duration(milliseconds: 3500), () {
+    // Vérifier l'état de connexion et naviguer après 3.5 secondes
+    Future.delayed(const Duration(milliseconds: 3500), () async {
       if (mounted) {
+        await _checkAuthAndNavigate();
+      }
+    });
+  }
+
+  // Vérifier l'authentification et naviguer vers l'écran approprié
+  Future<void> _checkAuthAndNavigate() async {
+    try {
+      final isLoggedIn = await UserStorageService.isLoggedIn();
+
+      if (isLoggedIn) {
+        // Utilisateur connecté - aller vers l'accueil
+        print('✅ Utilisateur connecté détecté - redirection vers l\'accueil');
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+        );
+      } else {
+        // Utilisateur non connecté - aller vers l'onboarding
+        print('ℹ️ Aucun utilisateur connecté - redirection vers l\'onboarding');
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (context) => const OnboardingScreen()),
         );
       }
-    });
+    } catch (e) {
+      print('❌ Erreur lors de la vérification d\'authentification: $e');
+      // En cas d'erreur, aller vers l'onboarding par sécurité
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => const OnboardingScreen()),
+      );
+    }
   }
 
   @override

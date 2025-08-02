@@ -10,6 +10,8 @@ import 'otp_verification_screen.dart';
 import 'register_screen.dart';
 import 'forgot_password_screen.dart';
 import '../services/api_client.dart';
+import '../services/user_storage_service.dart';
+import 'home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -31,7 +33,8 @@ class _LoginScreenState extends State<LoginScreen> {
       AlertUtils.showError(
         context: context,
         message: 'Veuillez remplir tous les champs.',
-        debugDetails: 'Tentative de connexion avec des champs vides: username=${username.isEmpty}, password=${password.isEmpty}',
+        debugDetails:
+            'Tentative de connexion avec des champs vides: username=${username.isEmpty}, password=${password.isEmpty}',
       );
       return;
     }
@@ -42,15 +45,22 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       setState(() => _isLoading = false);
       if (response.isSuccess && response.data != null) {
-        // Connexion réussie, naviguer vers l'écran suivant (exemple : OTP)
+        // Sauvegarder les données utilisateur
+        await UserStorageService.saveUserData(response.data!);
+
+        // Connexion réussie, naviguer vers l'écran d'accueil
         AlertUtils.showSuccess(
           context: context,
           message: 'Connexion réussie !',
-          debugDetails: 'Utilisateur connecté: $username, données: ${response.data}',
+          debugDetails:
+              'Utilisateur connecté: $username, données: ${response.data}',
         );
-        Navigator.push(
+
+        // Naviguer vers l'écran d'accueil en remplaçant toute la pile de navigation
+        Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (context) => const OtpVerificationScreen()),
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          (route) => false,
         );
       } else {
         AlertUtils.showError(

@@ -35,6 +35,9 @@ class ApiClient {
   static const String _usersPrefix = '/api/users';
   static const String _registerEndpoint = '$_usersPrefix/register';
   static const String _loginEndpoint = '$_usersPrefix/login';
+  static const String _updateProfileEndpoint = '$_usersPrefix/profile';
+  static const String _updatePasswordEndpoint = '$_usersPrefix/password';
+  static const String _updatePhoneEndpoint = '$_usersPrefix/phone';
 
   /// URL de base pour l'API utilisateurs
   static String get usersBaseUrl => ServerConfig.usersApiBaseUrl;
@@ -44,6 +47,16 @@ class ApiClient {
 
   /// URL complète pour la connexion
   static String get loginUrl => '$usersBaseUrl$_loginEndpoint';
+
+  /// URL complète pour la mise à jour du profil
+  static String get updateProfileUrl => '$usersBaseUrl$_updateProfileEndpoint';
+
+  /// URL complète pour la mise à jour du mot de passe
+  static String get updatePasswordUrl =>
+      '$usersBaseUrl$_updatePasswordEndpoint';
+
+  /// URL complète pour la mise à jour du téléphone
+  static String get updatePhoneUrl => '$usersBaseUrl$_updatePhoneEndpoint';
 
   /// URLs complètes des endpoints - Films (Radarr) - Pour compatibilité externe
   static String get recentMoviesUrl => '$baseUrl$_moviesRecent';
