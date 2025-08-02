@@ -55,7 +55,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: overlayColors,
-                  stops: const [0.0, 0.15, 0.4, 0.6, 1.0],
+                  stops: const [0.0, 0.15, 0.2, 0.3, 1.0],
                 ),
               ),
             ),
@@ -137,225 +137,236 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  
+
                   // Formulaire d'inscription
-                // Titre principal
-                Text(
-                  'Ravis de vous\nrencontrer !',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: textColor,
-                    height: 1.2,
+                  // Titre principal
+                  Text(
+                    'Ravis de vous\nrencontrer !',
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: textColor,
+                      height: 1.2,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
+                  const SizedBox(height: 12),
 
-                // Description
-                Text(
-                  'Créez votre compte pour commencer',
-                  style: TextStyle(fontSize: 14, color: subtleTextColor),
-                ),
-                const SizedBox(height: 32),
+                  // Description
+                  Text(
+                    'Créez votre compte pour commencer',
+                    style: TextStyle(fontSize: 14, color: subtleTextColor),
+                  ),
+                  const SizedBox(height: 32),
 
-                // Champ Nom d'utilisateur
-                CustomTextField(
-                  controller: _usernameController,
-                  label: 'Nom d\'utilisateur',
-                  hintText: 'Votre nom d\'utilisateur',
-                  isDarkMode: isDarkMode,
-                ),
-                const SizedBox(height: 16),
+                  // Champ Nom d'utilisateur
+                  CustomTextField(
+                    controller: _usernameController,
+                    label: 'Nom d\'utilisateur',
+                    hintText: 'Votre nom d\'utilisateur',
+                    isDarkMode: isDarkMode,
+                  ),
+                  const SizedBox(height: 16),
 
-                // Champ Email
-                CustomTextField(
-                  controller: _emailController,
-                  label: 'Email',
-                  hintText: 'votre@email.com',
-                  isDarkMode: isDarkMode,
-                  keyboardType: TextInputType.emailAddress,
-                ),
-                const SizedBox(height: 16),
+                  // Champ Email
+                  CustomTextField(
+                    controller: _emailController,
+                    label: 'Email',
+                    hintText: 'votre@email.com',
+                    isDarkMode: isDarkMode,
+                    keyboardType: TextInputType.emailAddress,
+                  ),
+                  const SizedBox(height: 16),
 
-                // Champ Numéro de téléphone
-                CustomTextField(
-                  controller: _phoneNumberController,
-                  label: 'Numéro de téléphone',
-                  hintText: 'Votre numéro de téléphone',
-                  isDarkMode: isDarkMode,
-                  keyboardType: TextInputType.phone,
-                ),
-                const SizedBox(height: 24),
+                  // Champ Numéro de téléphone
+                  CustomTextField(
+                    controller: _phoneNumberController,
+                    label: 'Numéro de téléphone',
+                    hintText: 'Votre numéro de téléphone',
+                    isDarkMode: isDarkMode,
+                    keyboardType: TextInputType.phone,
+                  ),
+                  const SizedBox(height: 24),
 
-                // Champ Mot de passe
-                CustomTextField(
-                  controller: _passwordController,
-                  label: 'Mot de passe',
-                  hintText: 'Votre mot de passe',
-                  isDarkMode: isDarkMode,
-                  obscureText: true,
-                ),
-                const SizedBox(height: 24),
+                  // Champ Mot de passe
+                  CustomTextField(
+                    controller: _passwordController,
+                    label: 'Mot de passe',
+                    hintText: 'Votre mot de passe',
+                    isDarkMode: isDarkMode,
+                    obscureText: true,
+                  ),
+                  const SizedBox(height: 24),
 
-                // Bouton S'inscrire
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      // Vérifier que les champs ne sont pas vides
-                      if (_usernameController.text.isEmpty ||
-                          _emailController.text.isEmpty ||
-                          _passwordController.text.isEmpty) {
-                        AlertUtils.showError(
-                          context: context,
-                          message: 'Veuillez remplir tous les champs',
-                          debugDetails: 'Tentative d\'inscription avec des champs vides: ' +
-                              'username=${_usernameController.text.isEmpty}, ' +
-                              'email=${_emailController.text.isEmpty}, ' +
-                              'password=${_passwordController.text.isEmpty}, ' +
-                              'phone=${_phoneNumberController.text.isEmpty}',
-                        );
-                        return;
-                      }
-
-                      // Afficher un indicateur de chargement
-                      showDialog(
-                        context: context,
-                        barrierDismissible: false,
-                        builder: (context) => const Center(
-                          child: CircularProgressIndicator(),
-                        ),
-                      );
-
-                      // Préparer les données d'inscription
-                      final userData = {
-                        'username': _usernameController.text,
-                        'email': _emailController.text,
-                        'phoneNumber': _phoneNumberController.text,
-                        'password': _passwordController.text,
-                      };
-
-                      try {
-                        // Appeler l'API d'inscription
-                        final response = await ApiClient.registerUser(
-                          body: userData,
-                        );
-
-                        // Fermer le dialogue de chargement
-                        Navigator.pop(context);
-
-                        if (response.isSuccess) {
-                          // Afficher un message de succès
-                          AlertUtils.showSuccess(
-                            context: context,
-                            message: 'Inscription réussie !',
-                            debugDetails: 'Utilisateur inscrit avec succès: ' +
-                                'username=${_usernameController.text}, ' +
-                                'email=${_emailController.text}, ' +
-                                'réponse API=${response.data}',
-                          );
-
-                          // Naviguer vers l'écran de vérification OTP
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const OtpVerificationScreen(),
-                            ),
-                          );
-                        } else {
-                          // Afficher le message d'erreur
+                  // Bouton S'inscrire
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        // Vérifier que les champs ne sont pas vides
+                        if (_usernameController.text.isEmpty ||
+                            _emailController.text.isEmpty ||
+                            _passwordController.text.isEmpty) {
                           AlertUtils.showError(
                             context: context,
-                            message: response.error ?? 'Erreur d\'inscription',
-                            debugDetails: 'Échec d\'inscription: ' +
+                            message: 'Veuillez remplir tous les champs',
+                            debugDetails:
+                                'Tentative d\'inscription avec des champs vides: ' +
+                                'username=${_usernameController.text.isEmpty}, ' +
+                                'email=${_emailController.text.isEmpty}, ' +
+                                'password=${_passwordController.text.isEmpty}, ' +
+                                'phone=${_phoneNumberController.text.isEmpty}',
+                          );
+                          return;
+                        }
+
+                        // Afficher un indicateur de chargement
+                        showDialog(
+                          context: context,
+                          barrierDismissible: false,
+                          builder: (context) =>
+                              const Center(child: CircularProgressIndicator()),
+                        );
+
+                        // Préparer les données d'inscription
+                        final userData = {
+                          'username': _usernameController.text,
+                          'email': _emailController.text,
+                          'phoneNumber': _phoneNumberController.text,
+                          'password': _passwordController.text,
+                        };
+
+                        try {
+                          // Appeler l'API d'inscription
+                          final response = await ApiClient.registerUser(
+                            body: userData,
+                          );
+
+                          // Fermer le dialogue de chargement
+                          Navigator.pop(context);
+
+                          if (response.isSuccess) {
+                            // Afficher un message de succès
+                            AlertUtils.showSuccess(
+                              context: context,
+                              message: 'Inscription réussie !',
+                              debugDetails:
+                                  'Utilisateur inscrit avec succès: ' +
+                                  'username=${_usernameController.text}, ' +
+                                  'email=${_emailController.text}, ' +
+                                  'réponse API=${response.data}',
+                            );
+
+                            // Naviguer vers l'écran de vérification OTP
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const OtpVerificationScreen(),
+                              ),
+                            );
+                          } else {
+                            // Afficher le message d'erreur
+                            AlertUtils.showError(
+                              context: context,
+                              message:
+                                  response.error ?? 'Erreur d\'inscription',
+                              debugDetails:
+                                  'Échec d\'inscription: ' +
+                                  'username=${_usernameController.text}, ' +
+                                  'email=${_emailController.text}, ' +
+                                  'erreur API=${response.error}',
+                            );
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const DeviceSelectionScreen(),
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          // Fermer le dialogue de chargement
+                          Navigator.pop(context);
+
+                          // Afficher l'erreur
+                          AlertUtils.showError(
+                            context: context,
+                            message:
+                                'Une erreur est survenue lors de l\'inscription',
+                            debugDetails:
+                                'Exception lors de l\'inscription: ' +
                                 'username=${_usernameController.text}, ' +
                                 'email=${_emailController.text}, ' +
-                                'erreur API=${response.error}',
+                                'exception=$e',
                           );
-                          Navigator.push(context, MaterialPageRoute(
-                            builder: (context) => const DeviceSelectionScreen(),
-                          ));
                         }
-                      } catch (e) {
-                        // Fermer le dialogue de chargement
-                        Navigator.pop(context);
-                        
-                        // Afficher l'erreur
-                        AlertUtils.showError(
-                          context: context,
-                          message: 'Une erreur est survenue lors de l\'inscription',
-                          debugDetails: 'Exception lors de l\'inscription: ' +
-                              'username=${_usernameController.text}, ' +
-                              'email=${_emailController.text}, ' +
-                              'exception=$e',
-                        );
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: AppColors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(
-                          AppSpacing.radiusSmall,
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: AppColors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(
+                            AppSpacing.radiusSmall,
+                          ),
                         ),
+                        elevation: 0,
                       ),
-                      elevation: 0,
-                    ),
-                    child: const Text(
-                      'S\'inscrire',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
+                      child: const Text(
+                        'S\'inscrire',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 16),
+                  const SizedBox(height: 16),
 
-                // Lien vers connexion
-                Center(
-                  child: GestureDetector(
-                    onTap: () {
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const LoginScreen(),
+                  // Lien vers connexion
+                  Center(
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const LoginScreen(),
+                          ),
+                        );
+                      },
+                      child: RichText(
+                        text: TextSpan(
+                          children: [
+                            TextSpan(
+                              text: 'Déjà DayWatcher ? ',
+                              style: TextStyle(
+                                color: subtleTextColor,
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            TextSpan(
+                              text: 'Se connecter',
+                              style: TextStyle(
+                                color: AppColors.primary,
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
                         ),
-                      );
-                    },
-                    child: RichText(
-                      text: TextSpan(
-                        children: [
-                          TextSpan(
-                            text: 'Déjà DayWatcher ? ',
-                            style: TextStyle(
-                              color: subtleTextColor,
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          TextSpan(
-                            text: 'Se connecter',
-                            style: TextStyle(
-                              color: AppColors.primary,
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
                       ),
                     ),
                   ),
-                ),
-                
-                // Espace supplémentaire en bas pour le défilement
-                const SizedBox(height: 40),
-              ],
+
+                  // Espace supplémentaire en bas pour le défilement
+                  const SizedBox(height: 40),
+                ],
+              ),
             ),
           ),
-        ),
-      ]),
+        ],
+      ),
     );
   }
 }

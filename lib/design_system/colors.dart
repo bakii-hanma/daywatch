@@ -76,7 +76,7 @@ class AppColors {
         Colors.black.withOpacity(0.1),
         Colors.black.withOpacity(0.3),
         Colors.black.withOpacity(0.6),
-        Colors.black.withOpacity(0.9),
+        Colors.black.withOpacity(0.99),
       ];
     } else {
       return [

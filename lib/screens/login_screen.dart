@@ -109,7 +109,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: overlayColors,
-                  stops: const [0.0, 0.15, 0.4, 0.6, 1.0],
+                  stops: const [0.0, 0.15, 0.2, 0.3, 1.0],
                 ),
               ),
             ),
