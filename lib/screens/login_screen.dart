@@ -232,6 +232,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   label: 'Mot de passe',
                   hintText: 'Votre mot de passe',
                   isDarkMode: isDarkMode,
+                  obscureText: true,
                 ),
 
                 const SizedBox(height: 16),
