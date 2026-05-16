@@ -11,7 +11,7 @@ import 'register_screen.dart';
 import 'forgot_password_screen.dart';
 import '../services/api_client.dart';
 import '../services/user_storage_service.dart';
-import 'home_screen.dart';
+import 'profile_selection_screen.dart';
 import '../widgets/common/custom_text_field.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -49,7 +49,7 @@ class _LoginScreenState extends State<LoginScreen> {
         // Sauvegarder les données utilisateur
         await UserStorageService.saveUserData(response.data!);
 
-        // Connexion réussie, naviguer vers l'écran d'accueil
+        // Connexion réussie, naviguer vers l'écran de sélection de profil
         AlertUtils.showSuccess(
           context: context,
           message: 'Connexion réussie !',
@@ -57,10 +57,12 @@ class _LoginScreenState extends State<LoginScreen> {
               'Utilisateur connecté: $username, données: ${response.data}',
         );
 
-        // Naviguer vers l'écran d'accueil en remplaçant toute la pile de navigation
+        // Naviguer vers l'écran de sélection de profil en remplaçant toute la pile de navigation
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          MaterialPageRoute(
+            builder: (context) => const ProfileSelectionScreen(),
+          ),
           (route) => false,
         );
       } else {

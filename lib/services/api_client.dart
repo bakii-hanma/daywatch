@@ -38,6 +38,7 @@ class ApiClient {
   static const String _updateProfileEndpoint = '$_usersPrefix/profile';
   static const String _updatePasswordEndpoint = '$_usersPrefix/password';
   static const String _updatePhoneEndpoint = '$_usersPrefix/phone';
+  static const String _getProfilesEndpoint = '/api/profiles/user/:userId';
 
   /// URL de base pour l'API utilisateurs
   static String get usersBaseUrl => ServerConfig.usersApiBaseUrl;
@@ -755,6 +756,63 @@ class ApiClient {
   /// Obtenir l'URL complète d'un endpoint
   static String getFullUrl(String endpoint) {
     return endpoint.startsWith('http') ? endpoint : '$baseUrl$endpoint';
+  }
+
+  /// Récupérer les profils d'un utilisateur
+  static Future<ApiResponse<List<Map<String, dynamic>>>> getUserProfiles({
+    required String userId,
+  }) async {
+    try {
+      print('🔍 Récupération des profils pour l\'utilisateur: $userId');
+
+      // Construire l'URL avec l'ID utilisateur
+      final endpoint = _getProfilesEndpoint.replaceAll(':userId', userId);
+      final url = '$usersBaseUrl$endpoint';
+
+      print('📡 Requête vers: $url');
+
+      final response = await http
+          .get(Uri.parse(url), headers: _defaultHeaders)
+          .timeout(defaultTimeout);
+
+      print('📡 Statut de la réponse: ${response.statusCode}');
+      print('📦 Corps de la réponse: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final dynamic jsonData = jsonDecode(response.body);
+
+        // Vérifier si la réponse contient une liste de profils
+        if (jsonData is Map<String, dynamic> &&
+            jsonData.containsKey('profiles')) {
+          final profilesList = jsonData['profiles'] as List<dynamic>;
+          final profiles = profilesList
+              .map((profile) => profile as Map<String, dynamic>)
+              .toList();
+
+          print('✅ ${profiles.length} profil(s) récupéré(s) avec succès');
+          return ApiResponse.success(profiles);
+        } else if (jsonData is List) {
+          // Si la réponse est directement une liste
+          final profiles = jsonData
+              .map((profile) => profile as Map<String, dynamic>)
+              .toList();
+
+          print('✅ ${profiles.length} profil(s) récupéré(s) avec succès');
+          return ApiResponse.success(profiles);
+        } else {
+          print('❌ Format de réponse inattendu pour les profils');
+          return ApiResponse.error('Format de réponse inattendu');
+        }
+      } else {
+        final errorMessage =
+            'Erreur HTTP ${response.statusCode}: ${response.reasonPhrase}';
+        print('❌ $errorMessage');
+        return ApiResponse.error(errorMessage);
+      }
+    } catch (e) {
+      print('❌ Erreur récupération profils: $e');
+      return ApiResponse.error('Erreur récupération profils: $e');
+    }
   }
 
   /// Nettoyer les ressources

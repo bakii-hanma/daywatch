@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../design_system/colors.dart';
 import '../design_system/typography.dart';
 import '../design_system/spacing.dart';
-import '../screens/home_screen.dart';
+import '../screens/profile_selection_screen.dart';
 
 class DeviceSelectionScreen extends StatelessWidget {
   const DeviceSelectionScreen({Key? key}) : super(key: key);
@@ -45,10 +45,7 @@ class DeviceSelectionScreen extends StatelessWidget {
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [
-                  AppColors.primary.withOpacity(0.1),
-                  backgroundColor,
-                ],
+                colors: [AppColors.primary.withOpacity(0.1), backgroundColor],
               ),
             ),
           ),
@@ -80,7 +77,9 @@ class DeviceSelectionScreen extends StatelessWidget {
 
                 // Titre de la page
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.xl,
+                  ),
                   child: Text(
                     'Choisissez votre appareil',
                     style: AppTypography.header(textColor),
@@ -91,7 +90,9 @@ class DeviceSelectionScreen extends StatelessWidget {
 
                 // Sous-titre
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.xl,
+                  ),
                   child: Text(
                     'Sélectionnez l\'appareil sur lequel vous souhaitez utiliser DayWatch',
                     style: AppTypography.body(
@@ -141,10 +142,12 @@ class DeviceSelectionScreen extends StatelessWidget {
   ) {
     return GestureDetector(
       onTap: () {
-        // Navigation vers l'écran d'accueil ou l'écran spécifique à l'appareil
+        // Navigation vers l'écran de sélection de profil
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          MaterialPageRoute(
+            builder: (context) => const ProfileSelectionScreen(),
+          ),
         );
       },
       child: Container(
@@ -203,11 +206,7 @@ class DeviceSelectionScreen extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Icon(
-                        icon,
-                        color: AppColors.primary,
-                        size: 24,
-                      ),
+                      Icon(icon, color: AppColors.primary, size: 24),
                       const SizedBox(width: AppSpacing.md),
                       Text(
                         name,
@@ -231,7 +230,9 @@ class DeviceSelectionScreen extends StatelessWidget {
                     height: 50,
                     decoration: BoxDecoration(
                       color: AppColors.primary,
-                      borderRadius: BorderRadius.circular(AppSpacing.radiusSmall),
+                      borderRadius: BorderRadius.circular(
+                        AppSpacing.radiusSmall,
+                      ),
                     ),
                     child: Center(
                       child: Text(

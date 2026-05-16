@@ -3,7 +3,7 @@ import '../widgets/daywatch_logo.dart';
 import '../design_system/colors.dart';
 import '../services/user_storage_service.dart';
 import 'onboarding_screen.dart';
-import 'home_screen.dart';
+import 'profile_selection_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -70,7 +70,9 @@ class _SplashScreenState extends State<SplashScreen>
         // Utilisateur connecté - aller vers l'accueil
         print('✅ Utilisateur connecté détecté - redirection vers l\'accueil');
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          MaterialPageRoute(
+            builder: (context) => const ProfileSelectionScreen(),
+          ),
         );
       } else {
         // Utilisateur non connecté - aller vers l'onboarding

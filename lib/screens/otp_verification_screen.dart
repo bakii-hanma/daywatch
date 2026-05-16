@@ -5,7 +5,7 @@ import '../design_system/spacing.dart';
 import '../design_system/typography.dart';
 import '../widgets/daywatch_logo.dart';
 import '../widgets/common/animated_poster_background.dart';
-import 'home_screen.dart';
+import 'profile_selection_screen.dart';
 
 class OtpVerificationScreen extends StatefulWidget {
   const OtpVerificationScreen({super.key});
@@ -241,7 +241,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                       Navigator.pushAndRemoveUntil(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const HomeScreen(),
+                          builder: (context) => const ProfileSelectionScreen(),
                         ),
                         (route) => false,
                       );

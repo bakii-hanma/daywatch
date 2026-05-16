@@ -1,4 +1,3 @@
-import 'package:daywatch/screens/device_selection_screen.dart';
 import 'package:flutter/material.dart';
 import 'dart:ui';
 import '../design_system/colors.dart';
@@ -276,13 +275,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   'username=${_usernameController.text}, ' +
                                   'email=${_emailController.text}, ' +
                                   'erreur API=${response.error}',
-                            );
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    const DeviceSelectionScreen(),
-                              ),
                             );
                           }
                         } catch (e) {
