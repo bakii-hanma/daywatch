@@ -1,184 +1,275 @@
 import '../models/movie_model.dart';
 import 'api_client.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import '../config/server_config.dart';
+
+// ─── Helper interne ────────────────────────────────────────────────────────────
+List<dynamic> _extractList(dynamic responseData) {
+  if (responseData is List) return responseData;
+  if (responseData is Map<String, dynamic>) {
+    return responseData['data'] as List<dynamic>? ?? [];
+  }
+  return [];
+}
+
+void _logRoute(String route, int count, {String? extra}) {
+  final suffix = extra != null ? ' | $extra' : '';
+  print('🎬 [Films] $route → $count résultat(s)$suffix');
+}
+
+void _logError(String route, dynamic e) {
+  print('❌ [Films] $route → Erreur: $e');
+}
+
+// ─── Parseur avec rapport d'erreurs ───────────────────────────────────────────
+List<MovieApiModel> _parseMovies(
+  List<dynamic> data,
+  MovieApiModel Function(Map<String, dynamic>) factory,
+  String route,
+) {
+  final movies = <MovieApiModel>[];
+  for (int i = 0; i < data.length; i++) {
+    try {
+      movies.add(factory(data[i] as Map<String, dynamic>));
+    } catch (e) {
+      final title = (data[i] as Map?)?['title'] ?? '?';
+      print('⚠️ [Films] $route → Parsing[$i] "$title" échoué: $e');
+    }
+  }
+  return movies;
+}
 
 class MovieService {
-  /// Test de connectivité avec l'API Radarr
-  static Future<bool> testConnection() async {
-    try {
-      print('🔗 Test de connexion Radarr vers ${ApiClient.baseUrl}...');
-      final movies = await getEssentialMovies(limit: 1);
-      return movies.isNotEmpty;
-    } catch (e) {
-      print('❌ Erreur de connexion Radarr: $e');
-      return false;
-    }
+  static List<MovieApiModel>? _cachedAllMovies;
+
+  static void clearCache() {
+    _cachedAllMovies = null;
   }
 
-  /// Diagnostic réseau pour l'API Radarr
-  static Future<void> diagnoseNetwork() async {
-    print('\n🔍 === DIAGNOSTIC RÉSEAU RADARR ===');
-    print('📍 URL de base: ${ApiClient.baseUrl}');
-    print('🎯 Endpoint: /api/radarr/movies/essentials');
-
-    try {
-      final isConnected = await testConnection();
-      print(
-        isConnected ? '✅ Connectivité confirmée' : '❌ Test de connexion échoué',
-      );
-    } catch (e) {
-      print('❌ Erreur lors du diagnostic: $e');
+  static Future<List<MovieApiModel>> getOrFetchAllMovies() async {
+    if (_cachedAllMovies != null && _cachedAllMovies!.isNotEmpty) {
+      return _cachedAllMovies!;
     }
-    print('=== FIN DIAGNOSTIC ===\n');
+    _cachedAllMovies = await getAllMovies(limit: 1500);
+    return _cachedAllMovies!;
   }
 
-  /// Récupération des films essentiels (nouvelle route)
-  static Future<List<MovieApiModel>> getEssentialMovies({
-    int limit = 20,
-  }) async {
+  // ── 1. GET /api/movies ──────────────────────────────────────────────────────
+  static Future<List<MovieApiModel>> getAllMovies({int limit = 20}) async {
+    const route = 'GET /api/movies';
     try {
-      print('📥 Récupération des films essentiels (limite: $limit)...');
-
-      final endpoint = '/api/radarr/movies/essentials?limit=$limit';
-      final response = await ApiClient.get<dynamic>(endpoint);
-
-      if (response.isSuccess && response.data != null) {
-        final responseData = response.data as Map<String, dynamic>;
-        final List<dynamic> moviesData = responseData['data'] ?? [];
-
-        final movies = moviesData
-            .map((json) => MovieApiModel.fromEssentialJson(json))
-            .toList();
-
-        print('✅ ${movies.length} films essentiels récupérés avec succès');
-
-        // Debug : afficher les titres
-        if (movies.isNotEmpty) {
-          print('🎬 Films essentiels récupérés:');
-          for (var movie in movies.take(3)) {
-            print(
-              '   - ${movie.title} (${movie.year}) - Note: ${movie.rating}',
-            );
-          }
-          if (movies.length > 3) {
-            print('   ... et ${movies.length - 3} autres');
-          }
-        }
-
-        return movies;
-      } else {
-        print(
-          '❌ Erreur lors de la récupération des films essentiels: ${response.error}',
-        );
+      final response = await ApiClient.get<dynamic>('/api/movies?limit=$limit');
+      if (!response.isSuccess || response.data == null) {
+        _logRoute(route, 0, extra: 'réponse vide ou échec');
         return [];
       }
+      final raw = _extractList(response.data);
+      final movies = _parseMovies(raw, MovieApiModel.fromJson, route);
+      _logRoute(route, movies.length, extra: '${raw.length} bruts');
+      return movies;
     } catch (e) {
-      print('❌ Exception lors de la récupération des films essentiels: $e');
+      _logError(route, e);
       return [];
     }
   }
 
-  /// Récupération des films récents (alias pour getEssentialMovies)
-  static Future<List<MovieApiModel>> getRecentMovies({int limit = 10}) async {
-    return getEssentialMovies(limit: limit);
-  }
-
-  /// Récupération des films populaires (alias pour getEssentialMovies)
-  static Future<List<MovieApiModel>> getPopularMovies({int limit = 10}) async {
-    return getEssentialMovies(limit: limit);
-  }
-
-  /// Récupération de tous les films (alias pour getEssentialMovies)
-  static Future<List<MovieApiModel>> getAllMovies() async {
-    return getEssentialMovies(
-      limit: 100,
-    ); // Limite élevée pour récupérer tous les films
-  }
-
-  /// Récupération d'un film par son TMDB ID (nouvelle route)
-  static Future<MovieApiModel?> getMovieByTmdbId(int tmdbId) async {
+  // ── 2. GET /api/movies/:id ──────────────────────────────────────────────────
+  static Future<MovieApiModel?> getMovieById(dynamic movieId) async {
+    final route = 'GET /api/movies/$movieId';
     try {
-      print('📥 Récupération du film TMDB ID: $tmdbId...');
-
-      final endpoint = '/api/radarr/movies/$tmdbId';
-      final response = await ApiClient.get<dynamic>(endpoint);
-
-      if (response.isSuccess && response.data != null) {
-        final responseData = response.data as Map<String, dynamic>;
-        final movieData = responseData['data'];
-
-        if (movieData != null) {
-          final movie = MovieApiModel.fromJson(movieData);
-          print('✅ Film récupéré: ${movie.title}');
-          return movie;
-        } else {
-          print('❌ Données de film non trouvées dans la réponse');
-          return null;
-        }
-      } else {
-        print('❌ Erreur lors de la récupération du film: ${response.error}');
+      final response = await ApiClient.get<dynamic>('/api/movies/$movieId');
+      if (!response.isSuccess || response.data == null) {
+        _logRoute(route, 0, extra: 'réponse vide ou échec');
         return null;
       }
+      dynamic movieData;
+      if (response.data is Map<String, dynamic>) {
+        final map = response.data as Map<String, dynamic>;
+        movieData = map.containsKey('data') ? map['data'] : map;
+      } else {
+        movieData = response.data;
+      }
+      if (movieData == null) {
+        _logRoute(route, 0, extra: 'data null après extraction');
+        return null;
+      }
+      final movie = MovieApiModel.fromJson(movieData as Map<String, dynamic>);
+      print('🎬 [Films] $route → "${movie.title}" (id=${movie.id}, tmdb=${movie.tmdbId})');
+      return movie;
     } catch (e) {
-      print('❌ Exception lors de la récupération du film: $e');
+      _logError(route, e);
       return null;
     }
   }
 
-  /// Récupération d'un film par son ID (alias pour getMovieByTmdbId)
-  static Future<MovieApiModel?> getMovieById(int movieId) async {
-    return getMovieByTmdbId(movieId);
+  static Future<MovieApiModel?> getMovieByTmdbId(int tmdbId) async {
+    return getMovieById('tmdb_$tmdbId');
   }
 
-  /// Récupérer les films du box office (utilise getEssentialMovies pour l'instant)
-  static Future<List<MovieApiModel>> getBoxOfficeMovies({
-    int limit = 10,
-  }) async {
+  // ── 3. GET /api/movies/coming-soon ─────────────────────────────────────────
+  static Future<List<MovieApiModel>> getComingSoonMovies({int limit = 10}) async {
+    const route = 'GET /api/movies/coming-soon';
     try {
-      print('💰 Récupération des films box office...');
-
-      final movies = await getEssentialMovies(limit: limit);
-
-      // Filtrer le contenu NSFW
-      final filteredMovies = movies.where((movie) {
-        final isNsfw = movie.tags.any(
-          (tag) =>
-              tag.toLowerCase().contains('nsfw') ||
-              tag.toLowerCase().contains('adult') ||
-              tag.toLowerCase().contains('porn'),
-        );
-        return !isNsfw;
-      }).toList();
-
-      print('📊 Résultats finaux box office:');
-      print('   - Total récupéré: ${movies.length}');
-      print('   - Après filtrage NSFW: ${filteredMovies.length}');
-      for (final movie in filteredMovies.take(3)) {
-        final earnings = movie.boxOffice != null
-            ? formatEarnings(movie.boxOffice!.revenue)
-            : 'N/A';
-        print('   - ${movie.title} (${movie.year}) - Earnings: $earnings');
+      final response = await ApiClient.get<dynamic>('/api/movies/coming-soon?limit=$limit');
+      if (!response.isSuccess || response.data == null) {
+        _logRoute(route, 0, extra: 'réponse vide ou échec');
+        return [];
       }
-
-      return filteredMovies;
+      final raw = _extractList(response.data);
+      final movies = _parseMovies(raw, MovieApiModel.fromJson, route);
+      _logRoute(route, movies.length, extra: '${raw.length} bruts');
+      return movies;
     } catch (e) {
-      print('❌ Erreur lors du chargement des films box office: $e');
+      _logError(route, e);
       return [];
     }
   }
 
-  /// Méthode utilitaire pour formater les gains
+  // ── 4. GET /api/movies/popular ──────────────────────────────────────────────
+  static Future<List<MovieApiModel>> getPopularMovies({int limit = 10}) async {
+    const route = 'GET /api/movies/popular';
+    try {
+      final response = await ApiClient.get<dynamic>('/api/movies/popular?limit=$limit');
+      if (!response.isSuccess || response.data == null) {
+        _logRoute(route, 0, extra: 'réponse vide ou échec');
+        return [];
+      }
+      final raw = _extractList(response.data);
+      final movies = _parseMovies(raw, MovieApiModel.fromJson, route);
+      _logRoute(route, movies.length, extra: '${raw.length} bruts');
+      return movies;
+    } catch (e) {
+      _logError(route, e);
+      return [];
+    }
+  }
+
+  // ── 5. GET /api/movies/recent ───────────────────────────────────────────────
+  // Format Radarr natif : images en tableau [{coverType, remoteUrl}]
+  static Future<List<MovieApiModel>> getRecentMovies({int limit = 10}) async {
+    const route = 'GET /api/movies/recent';
+    try {
+      final response = await ApiClient.get<dynamic>('/api/movies/recent?limit=$limit');
+      if (!response.isSuccess || response.data == null) {
+        _logRoute(route, 0, extra: 'réponse vide ou échec');
+        return [];
+      }
+      final raw = _extractList(response.data);
+      final movies = _parseMovies(raw, MovieApiModel.fromRadarrJson, route);
+      _logRoute(route, movies.length, extra: '${raw.length} bruts, format Radarr');
+      return movies;
+    } catch (e) {
+      _logError(route, e);
+      return [];
+    }
+  }
+
+  // ── 6. GET /api/movies/recent-additions ────────────────────────────────────
+  static Future<List<MovieApiModel>> getRecentAdditions({int limit = 10}) async {
+    const route = 'GET /api/movies/recent-additions';
+    try {
+      final response = await ApiClient.get<dynamic>('/api/movies/recent-additions?limit=$limit');
+      if (!response.isSuccess || response.data == null) {
+        _logRoute(route, 0, extra: 'réponse vide ou échec');
+        return [];
+      }
+      final raw = _extractList(response.data);
+      final movies = _parseMovies(raw, MovieApiModel.fromJson, route);
+      _logRoute(route, movies.length, extra: '${raw.length} bruts');
+      return movies;
+    } catch (e) {
+      _logError(route, e);
+      return [];
+    }
+  }
+
+  // ── 7. GET /api/movies/recent-additions/essentials ─────────────────────────
+  static Future<List<MovieApiModel>> getRecentAdditionsEssentials({int limit = 10}) async {
+    const route = 'GET /api/movies/recent-additions/essentials';
+    try {
+      final response = await ApiClient.get<dynamic>('/api/movies/recent-additions/essentials?limit=$limit');
+      if (!response.isSuccess || response.data == null) {
+        _logRoute(route, 0, extra: 'réponse vide ou échec');
+        return [];
+      }
+      final raw = _extractList(response.data);
+      final movies = _parseMovies(raw, MovieApiModel.fromEssentialJson, route);
+      _logRoute(route, movies.length, extra: '${raw.length} bruts');
+      return movies;
+    } catch (e) {
+      _logError(route, e);
+      return [];
+    }
+  }
+
+  // ── 8. GET /api/movies/top-recommendations ─────────────────────────────────
+  static Future<List<MovieApiModel>> getTopRecommendationsFull({int limit = 5}) async {
+    const route = 'GET /api/movies/top-recommendations';
+    try {
+      final response = await ApiClient.get<dynamic>('/api/movies/top-recommendations?limit=$limit');
+      if (!response.isSuccess || response.data == null) {
+        _logRoute(route, 0, extra: 'réponse vide ou échec');
+        return [];
+      }
+      final raw = _extractList(response.data);
+      final movies = _parseMovies(raw, MovieApiModel.fromJson, route);
+      _logRoute(route, movies.length, extra: '${raw.length} bruts');
+      return movies;
+    } catch (e) {
+      _logError(route, e);
+      return [];
+    }
+  }
+
+  // ── 9. GET /api/movies/top-recommendations/essentials ──────────────────────
+  static Future<List<MovieApiModel>> getTopRecommendations({int limit = 5}) async {
+    const route = 'GET /api/movies/top-recommendations/essentials';
+    try {
+      final response = await ApiClient.get<dynamic>('/api/movies/top-recommendations/essentials?limit=$limit');
+      if (!response.isSuccess || response.data == null) {
+        _logRoute(route, 0, extra: 'réponse vide ou échec');
+        return [];
+      }
+      final raw = _extractList(response.data);
+      final movies = _parseMovies(raw, MovieApiModel.fromEssentialJson, route);
+      _logRoute(route, movies.length, extra: '${raw.length} bruts');
+      return movies;
+    } catch (e) {
+      _logError(route, e);
+      return [];
+    }
+  }
+
+  // ── Alias / utilitaires ────────────────────────────────────────────────────
+
+  /// Alias de getAllMovies pour compatibilité
+  static Future<List<MovieApiModel>> getEssentialMovies({int limit = 20}) =>
+      getAllMovies(limit: limit);
+
+  /// Box office = films populaires filtrés NSFW
+  static Future<List<MovieApiModel>> getBoxOfficeMovies({int limit = 10}) async {
+    final movies = await getPopularMovies(limit: limit);
+    return movies.where((m) {
+      return !m.tags.any((t) =>
+          t.toLowerCase().contains('nsfw') ||
+          t.toLowerCase().contains('adult') ||
+          t.toLowerCase().contains('porn'));
+    }).toList();
+  }
+
+  /// Formater les gains en $X.XB / $X.XM / $X.XK
   static String formatEarnings(int revenue) {
-    if (revenue >= 1000000000) {
-      return '\$${(revenue / 1000000000).toStringAsFixed(1)}B';
-    } else if (revenue >= 1000000) {
-      return '\$${(revenue / 1000000).toStringAsFixed(1)}M';
-    } else if (revenue >= 1000) {
-      return '\$${(revenue / 1000).toStringAsFixed(1)}K';
-    } else {
-      return '\$$revenue';
+    if (revenue >= 1000000000) return '\$${(revenue / 1000000000).toStringAsFixed(1)}B';
+    if (revenue >= 1000000) return '\$${(revenue / 1000000).toStringAsFixed(1)}M';
+    if (revenue >= 1000) return '\$${(revenue / 1000).toStringAsFixed(1)}K';
+    return '\$$revenue';
+  }
+
+  /// Test de connectivité
+  static Future<bool> testConnection() async {
+    try {
+      final r = await ApiClient.get<dynamic>('/api/movies?limit=1');
+      return r.isSuccess;
+    } catch (_) {
+      return false;
     }
   }
 }

@@ -7,12 +7,12 @@ class MarqueeText extends StatefulWidget {
   final Duration pauseDuration;
 
   const MarqueeText({
-    Key? key,
+    super.key,
     required this.text,
     required this.style,
     this.animationDuration = const Duration(milliseconds: 3000),
     this.pauseDuration = const Duration(milliseconds: 1000),
-  }) : super(key: key);
+  });
 
   @override
   State<MarqueeText> createState() => _MarqueeTextState();

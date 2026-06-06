@@ -10,12 +10,12 @@ class ReplayCard extends StatelessWidget {
   final VoidCallback? onTap;
 
   const ReplayCard({
-    Key? key,
+    super.key,
     required this.title,
     required this.imagePath,
     this.duration = 'Disponible 7 jours',
     this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

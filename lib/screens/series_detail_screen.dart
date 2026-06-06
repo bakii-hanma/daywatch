@@ -1,17 +1,18 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../design_system/colors.dart';
+import '../services/favorite_service.dart';
+import '../services/download_service.dart';
+import '../services/user_storage_service.dart';
 import '../models/movie_model.dart';
 import '../models/series_model.dart';
 import '../widgets/common/horizontal_section.dart';
 import '../widgets/common/actor_card.dart';
-import '../widgets/common/series_grid.dart';
 import '../widgets/common/comment_card.dart';
 import '../widgets/common/comment_input_field.dart';
 import '../widgets/common/season_card.dart';
 import '../screens/season_detail_screen.dart';
 import '../screens/image_gallery_viewer.dart';
-import '../screens/series_detail_screen.dart';
 import '../data/sample_data.dart';
 import '../services/series_service.dart'; // Added import for SeriesService
 
@@ -19,13 +20,11 @@ class SeriesDetailScreen extends StatefulWidget {
   final SeriesModel? series;
   final SeriesApiModel? apiSeries;
 
-  const SeriesDetailScreen({Key? key, required this.series})
-    : apiSeries = null,
-      super(key: key);
+  const SeriesDetailScreen({super.key, required this.series})
+    : apiSeries = null;
 
-  const SeriesDetailScreen.fromApiSeries({Key? key, required this.apiSeries})
-    : series = null,
-      super(key: key);
+  const SeriesDetailScreen.fromApiSeries({super.key, required this.apiSeries})
+    : series = null;
 
   @override
   State<SeriesDetailScreen> createState() => _SeriesDetailScreenState();
@@ -36,6 +35,10 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen>
   late TabController _tabController;
   SeriesApiModel? _enrichedSeries; // Série enrichie avec les épisodes
   bool _isLoadingEpisodes = false;
+  bool _isFavorite = false;
+  bool _isDownloaded = false;
+  bool _canDownload = false;
+  String? _userId;
 
   @override
   void initState() {
@@ -48,6 +51,27 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen>
     // Enrichir la série avec ses épisodes si c'est une série API
     if (widget.apiSeries != null) {
       _enrichSeriesWithEpisodes();
+    }
+    _initLibraryState();
+  }
+
+  Future<void> _initLibraryState() async {
+    final userData = await UserStorageService.getUserData();
+    if (userData != null && mounted) {
+      _userId = userData['userId']?.toString();
+      if (_userId != null && widget.apiSeries != null) {
+        final favorites = await FavoriteService.getFavoriteShows(_userId!);
+        final isFav = favorites.any((s) => s.id == widget.apiSeries!.id);
+        final isDown = await DownloadService.isSeriesDownloaded(widget.apiSeries!.id);
+        final canDown = await DownloadService.canDownload();
+        if (mounted) {
+          setState(() {
+            _isFavorite = isFav;
+            _isDownloaded = isDown;
+            _canDownload = canDown;
+          });
+        }
+      }
     }
   }
 
@@ -100,32 +124,34 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen>
   }
 
   // Getters pour récupérer les propriétés depuis le bon modèle
+  SeriesApiModel? get _currentApiSeries => _enrichedSeries ?? widget.apiSeries;
+
   String get _imagePath =>
-      widget.series?.imagePath ?? widget.apiSeries?.poster ?? '';
+      widget.series?.imagePath ?? _currentApiSeries?.poster ?? '';
   String get _bannerPath =>
       widget.series?.imagePath ??
-      widget.apiSeries?.fanart ??
-      widget.apiSeries?.poster ??
+      _currentApiSeries?.fanart ??
+      _currentApiSeries?.poster ??
       '';
-  String get _title => widget.series?.title ?? widget.apiSeries?.title ?? '';
+  String get _title => widget.series?.title ?? _currentApiSeries?.title ?? '';
   String get _seasons =>
       widget.series?.seasons ??
-      '${widget.apiSeries?.seasonInfo.totalSeasons ?? 0} saisons';
+      '${_currentApiSeries?.seasonInfo.totalSeasons ?? 0} saisons';
   String get _years =>
-      widget.series?.years ?? widget.apiSeries?.year.toString() ?? '';
+      widget.series?.years ?? _currentApiSeries?.year.toString() ?? '';
   double get _rating =>
-      widget.series?.rating ?? widget.apiSeries?.rating ?? 0.0;
+      widget.series?.rating ?? _currentApiSeries?.rating ?? 0.0;
   String get _genre =>
       widget.series?.genre ??
-      (widget.apiSeries?.genres.isNotEmpty == true
-          ? widget.apiSeries!.genres.first
+      (_currentApiSeries?.genres.isNotEmpty == true
+          ? _currentApiSeries!.genres.first
           : 'Série');
   String get _overview =>
-      widget.series?.description ?? widget.apiSeries?.overview ?? '';
-  String get _network => widget.apiSeries?.network ?? '';
-  String get _status => widget.apiSeries?.status ?? '';
-  String get _premiered => widget.apiSeries?.premiered ?? '';
-  bool get _isNetworkImage => widget.apiSeries != null;
+      widget.series?.description ?? _currentApiSeries?.overview ?? '';
+  String get _network => _currentApiSeries?.network ?? '';
+  String get _status => _currentApiSeries?.status ?? '';
+  String get _premiered => _currentApiSeries?.premiered ?? '';
+  bool get _isNetworkImage => widget.apiSeries != null || _enrichedSeries != null;
 
   @override
   Widget build(BuildContext context) {
@@ -191,7 +217,7 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen>
         Stack(
           children: [
             // Image de fond
-            Container(
+            SizedBox(
               height: 250,
               width: double.infinity,
               child: _isNetworkImage
@@ -389,27 +415,95 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen>
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
           _buildActionButton(
-            icon: Icons.add,
+            icon: _isFavorite ? Icons.bookmark : Icons.bookmark_border,
             label: 'Ma liste',
             isDarkMode: isDarkMode,
-            onTap: () {
-              // Ajouter à la liste
+            color: _isFavorite ? AppColors.primary : null,
+            onTap: () async {
+              print('❤️ [SeriesDetailScreen] Clic sur "Ma liste"');
+              final targetSeries = _currentApiSeries;
+              print('❤️ [SeriesDetailScreen] _userId: $_userId, targetSeries ID: ${targetSeries?.id}, Title: ${targetSeries?.title}, isFavorite actuel: $_isFavorite');
+              if (_userId == null || targetSeries == null) {
+                print('⚠️ [SeriesDetailScreen] Clic ignoré car _userId ou targetSeries est nul');
+                return;
+              }
+              
+              int? seriesIdInt;
+              try {
+                seriesIdInt = int.parse(targetSeries.id);
+                print('❤️ [SeriesDetailScreen] ID de série parsé avec succès: $seriesIdInt');
+              } catch (e) {
+                print('❌ [SeriesDetailScreen] Erreur lors du parsing de l\'ID de série "${targetSeries.id}": $e');
+              }
+
+              if (seriesIdInt == null) {
+                print('⚠️ [SeriesDetailScreen] Clic ignoré car l\'ID de la série ne peut pas être converti en entier');
+                return;
+              }
+
+              if (_isFavorite) {
+                print('❤️ [SeriesDetailScreen] Retrait de la série $seriesIdInt des favoris...');
+                final success = await FavoriteService.removeShowFromFavorites(_userId!, seriesIdInt);
+                print('❤️ [SeriesDetailScreen] Résultat retrait favoris: $success');
+                if (success) {
+                  setState(() => _isFavorite = false);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Retiré de vos favoris')),
+                  );
+                }
+              } else {
+                print('❤️ [SeriesDetailScreen] Ajout de la série $seriesIdInt aux favoris...');
+                final success = await FavoriteService.addShowToFavorites(_userId!, seriesIdInt);
+                print('❤️ [SeriesDetailScreen] Résultat ajout favoris: $success');
+                if (success) {
+                  setState(() => _isFavorite = true);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Ajouté à vos favoris')),
+                  );
+                }
+              }
             },
           ),
-          _buildActionButton(
-            icon: Icons.download,
-            label: 'Télécharger',
-            isDarkMode: isDarkMode,
-            onTap: () {
-              // Télécharger
-            },
-          ),
+          if (_canDownload && _currentApiSeries != null)
+            _buildActionButton(
+              icon: _isDownloaded ? Icons.download_done : Icons.download,
+              label: _isDownloaded ? 'Téléchargé' : 'Télécharger',
+              isDarkMode: isDarkMode,
+              color: _isDownloaded ? Colors.green : null,
+              onTap: () async {
+                final targetSeries = _currentApiSeries;
+                if (targetSeries == null) return;
+
+                if (_isDownloaded) {
+                  final success = await DownloadService.removeDownloadedSeries(targetSeries.id);
+                  if (success) {
+                    setState(() => _isDownloaded = false);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Téléchargement supprimé')),
+                    );
+                  }
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Téléchargement en cours...')),
+                  );
+                  final success = await DownloadService.downloadSeries(targetSeries);
+                  if (success) {
+                    setState(() => _isDownloaded = true);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Téléchargé avec succès !')),
+                    );
+                  }
+                }
+              },
+            ),
           _buildActionButton(
             icon: Icons.share,
             label: 'Partager',
             isDarkMode: isDarkMode,
             onTap: () {
-              // Partager
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Lien de partage copié !')),
+              );
             },
           ),
         ],
@@ -422,6 +516,7 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen>
     required String label,
     required bool isDarkMode,
     required VoidCallback onTap,
+    Color? color,
   }) {
     return InkWell(
       onTap: onTap,
@@ -429,14 +524,14 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen>
         children: [
           Icon(
             icon,
-            color: AppColors.getTextSecondaryColor(isDarkMode),
+            color: color ?? AppColors.getTextSecondaryColor(isDarkMode),
             size: 24,
           ),
           const SizedBox(height: 4),
           Text(
             label,
             style: TextStyle(
-              color: AppColors.getTextSecondaryColor(isDarkMode),
+              color: color ?? AppColors.getTextSecondaryColor(isDarkMode),
               fontSize: 12,
             ),
           ),
@@ -531,24 +626,26 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen>
                   ),
                 ),
                 const SizedBox(height: 8),
-                if (_overview.isNotEmpty)
-                  Text(
-                    _overview,
-                    style: TextStyle(
-                      color: AppColors.getTextSecondaryColor(isDarkMode),
-                      fontSize: 14,
-                      height: 1.5,
-                    ),
-                  )
-                else
-                  Text(
-                    'Une série passionnante qui suit les aventures extraordinaires de nos héros à travers différentes saisons. Chaque épisode apporte son lot de surprises et d\'émotions dans un univers riche et captivant.',
-                    style: TextStyle(
-                      color: AppColors.getTextSecondaryColor(isDarkMode),
-                      fontSize: 14,
-                      height: 1.5,
-                    ),
-                  ),
+                _isLoadingEpisodes && _enrichedSeries == null
+                    ? const Center(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: 20),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.red,
+                          ),
+                        ),
+                      )
+                    : Text(
+                        _overview.isNotEmpty
+                            ? _overview
+                            : 'Une série passionnante qui suit les aventures extraordinaires de nos héros à travers différentes saisons. Chaque épisode apporte son lot de surprises et d\'émotions dans un univers riche et captivant.',
+                        style: TextStyle(
+                          color: AppColors.getTextSecondaryColor(isDarkMode),
+                          fontSize: 14,
+                          height: 1.5,
+                        ),
+                      ),
               ],
             ),
           ),
@@ -570,7 +667,19 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen>
   }
 
   Widget _buildCastingSection(bool isDarkMode) {
-    final cast = widget.apiSeries?.cast;
+    if (_isLoadingEpisodes && _enrichedSeries == null) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 20),
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: Colors.red,
+          ),
+        ),
+      );
+    }
+
+    final cast = _currentApiSeries?.cast;
     if (cast != null && cast.cast.isNotEmpty) {
       final actors = cast.cast.map((castMember) {
         String imageUrl = '';
@@ -606,7 +715,19 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen>
   }
 
   Widget _buildGallerySection(bool isDarkMode) {
-    final gallery = widget.apiSeries?.gallery;
+    if (_isLoadingEpisodes && _enrichedSeries == null) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 20),
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: Colors.red,
+          ),
+        ),
+      );
+    }
+
+    final gallery = _currentApiSeries?.gallery;
     if (gallery != null) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -797,7 +918,7 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen>
             ),
           ),
         Text(
-          '🎬 Nombre de saisons: ${widget.apiSeries!.seasonInfo.totalSeasons}',
+          '🎬 Nombre de saisons: ${_currentApiSeries!.seasonInfo.totalSeasons}',
           style: TextStyle(
             color: AppColors.getTextSecondaryColor(isDarkMode),
             fontSize: 14,
@@ -833,26 +954,24 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen>
                   _imagePath; // Commence par l'image de la série
 
               // Si la série a des images spécifiques, on peut les utiliser
-              if (seriesToUse != null) {
-                // Vérifier si la saison a ses propres images
-                if (apiSeason.poster.isNotEmpty) {
-                  seasonImagePath = apiSeason.poster;
-                } else if (apiSeason.fanart.isNotEmpty) {
-                  seasonImagePath = apiSeason.fanart;
-                } else if (apiSeason.banner.isNotEmpty) {
-                  seasonImagePath = apiSeason.banner;
-                } else {
-                  // Fallback vers les images de la série
-                  if (seriesToUse.poster.isNotEmpty) {
-                    seasonImagePath = seriesToUse.poster;
-                  } else if (seriesToUse.fanart.isNotEmpty) {
-                    seasonImagePath = seriesToUse.fanart;
-                  } else if (seriesToUse.banner.isNotEmpty) {
-                    seasonImagePath = seriesToUse.banner;
-                  }
+              // Vérifier si la saison a ses propres images
+              if (apiSeason.poster.isNotEmpty) {
+                seasonImagePath = apiSeason.poster;
+              } else if (apiSeason.fanart.isNotEmpty) {
+                seasonImagePath = apiSeason.fanart;
+              } else if (apiSeason.banner.isNotEmpty) {
+                seasonImagePath = apiSeason.banner;
+              } else {
+                // Fallback vers les images de la série
+                if (seriesToUse.poster.isNotEmpty) {
+                  seasonImagePath = seriesToUse.poster;
+                } else if (seriesToUse.fanart.isNotEmpty) {
+                  seasonImagePath = seriesToUse.fanart;
+                } else if (seriesToUse.banner.isNotEmpty) {
+                  seasonImagePath = seriesToUse.banner;
                 }
               }
-
+            
               // Créer le SeasonModel avec les images de la saison
               final seasonModel = SeasonModel(
                 id: apiSeason.number.toString(),
@@ -890,8 +1009,7 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen>
                     onTap: () {
                       // Récupérer les épisodes de la saison depuis la série enrichie
                       List<EpisodeApiModel>? seasonEpisodes;
-                      if (seriesToUse != null &&
-                          seriesToUse.hasEpisodesForSeason(apiSeason.number)) {
+                      if (seriesToUse.hasEpisodesForSeason(apiSeason.number)) {
                         seasonEpisodes = seriesToUse.getEpisodesForSeason(
                           apiSeason.number,
                         );
@@ -909,7 +1027,7 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen>
                         MaterialPageRoute(
                           builder: (context) => SeasonDetailScreen.fromApi(
                             season: seasonModel,
-                            seriesId: seriesToUse!.id,
+                            seriesId: seriesToUse.id,
                             seasonNumber: apiSeason.number,
                             episodes: seasonEpisodes,
                           ),
@@ -920,7 +1038,7 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen>
                   const SizedBox(height: 12),
                 ],
               );
-            }).toList(),
+            }),
             const SizedBox(height: 40), // Espace pour la barre de navigation
           ],
         ),
@@ -956,7 +1074,7 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen>
                 const SizedBox(height: 12),
               ],
             );
-          }).toList(),
+          }),
           const SizedBox(height: 40), // Espace pour la barre de navigation
         ],
       ),

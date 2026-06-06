@@ -4,13 +4,12 @@ import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
 import '../design_system/colors.dart';
 import '../design_system/typography.dart';
-import '../design_system/spacing.dart';
 import '../models/tv_channel_model.dart';
 
 class TvPlayerScreen extends StatefulWidget {
   final TvChannelModel channel;
 
-  const TvPlayerScreen({Key? key, required this.channel}) : super(key: key);
+  const TvPlayerScreen({super.key, required this.channel});
 
   @override
   State<TvPlayerScreen> createState() => _TvPlayerScreenState();

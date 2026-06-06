@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import '../design_system/colors.dart';
-import '../design_system/spacing.dart';
 import '../design_system/typography.dart';
 import '../widgets/common/genre_filter_bar.dart';
 import '../widgets/common/live_match_card.dart';
 
 class LiveMatchesScreen extends StatefulWidget {
-  const LiveMatchesScreen({Key? key}) : super(key: key);
+  const LiveMatchesScreen({super.key});
 
   @override
   State<LiveMatchesScreen> createState() => _LiveMatchesScreenState();

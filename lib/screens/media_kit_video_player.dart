@@ -5,10 +5,10 @@ class MediaKitVideoPlayer extends StatefulWidget {
   final String title;
 
   const MediaKitVideoPlayer({
-    Key? key,
+    super.key,
     required this.videoUrl,
     required this.title,
-  }) : super(key: key);
+  });
 
   @override
   State<MediaKitVideoPlayer> createState() => _MediaKitVideoPlayerState();

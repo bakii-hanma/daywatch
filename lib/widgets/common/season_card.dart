@@ -15,7 +15,7 @@ class SeasonCard extends StatelessWidget {
   final VoidCallback? onTap;
 
   const SeasonCard({
-    Key? key,
+    super.key,
     required this.imagePath,
     required this.title,
     required this.episodes,
@@ -24,7 +24,7 @@ class SeasonCard extends StatelessWidget {
     required this.description,
     required this.isDarkMode,
     this.onTap,
-  }) : super(key: key);
+  });
 
   Widget _buildImage() {
     // Toujours utiliser Image.network car les images viennent maintenant de l'API

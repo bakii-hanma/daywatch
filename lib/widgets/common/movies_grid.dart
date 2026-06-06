@@ -13,7 +13,7 @@ class MoviesGrid extends StatelessWidget {
   final Function(MovieApiModel)? onApiMovieTap;
 
   const MoviesGrid({
-    Key? key,
+    super.key,
     this.movies,
     this.apiMovies,
     required this.isDarkMode,
@@ -23,8 +23,7 @@ class MoviesGrid extends StatelessWidget {
   }) : assert(
          movies != null || apiMovies != null,
          'Either movies or apiMovies must be provided',
-       ),
-       super(key: key);
+       );
 
   // Constructor pour les films classiques
   const MoviesGrid.classic({
@@ -104,13 +103,13 @@ class MoviesGrid extends StatelessWidget {
               crossAxisCount: 2,
               crossAxisSpacing: 16,
               mainAxisSpacing: 16,
-              childAspectRatio: 150 / 350, // 150px width / 350px height
+              childAspectRatio: 150 / 290, // 150px width / 290px height
             ),
             itemCount: _moviesCount,
             itemBuilder: (context, index) {
               return SizedBox(
                 width: 150,
-                height: 350,
+                height: 290,
                 child: _isApiMode
                     ? _buildApiMovieCard(context, index)
                     : _buildClassicMovieCard(context, index),

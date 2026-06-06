@@ -12,14 +12,14 @@ class LiveMatchCard extends StatelessWidget {
   final VoidCallback? onTap;
 
   const LiveMatchCard({
-    Key? key,
+    super.key,
     required this.team1,
     required this.team2,
     required this.time,
     required this.sport,
     required this.imagePath,
     this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -44,7 +44,7 @@ class LiveMatchCard extends StatelessWidget {
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(AppSpacing.radiusMedium),
-          child: Container(
+          child: SizedBox(
             height: 120,
             child: Row(
               children: [

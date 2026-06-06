@@ -3,7 +3,7 @@ import '../design_system/colors.dart';
 import '../widgets/common/genres_vertical_grid.dart';
 
 class GenresScreen extends StatelessWidget {
-  const GenresScreen({Key? key}) : super(key: key);
+  const GenresScreen({super.key});
 
   // Liste étendue des genres avec plus d'éléments
   static final List<GenreItem> _allGenres = [

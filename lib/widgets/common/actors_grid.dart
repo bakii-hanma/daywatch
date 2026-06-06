@@ -6,13 +6,15 @@ class ActorsGrid extends StatelessWidget {
   final List<ActorModel> actors;
   final bool isDarkMode;
   final String countText;
+  final Function(ActorModel)? onActorTap;
 
   const ActorsGrid({
-    Key? key,
+    super.key,
     required this.actors,
     required this.isDarkMode,
     required this.countText,
-  }) : super(key: key);
+    this.onActorTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -69,10 +71,13 @@ class ActorsGrid extends StatelessWidget {
   }
 
   Widget _buildActorGridItem(ActorModel actor, bool isDarkMode) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-        color: isDarkMode ? Colors.grey[850] : Colors.white,
+    return InkWell(
+      onTap: onActorTap != null ? () => onActorTap!(actor) : null,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          color: isDarkMode ? Colors.grey[850] : Colors.white,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.1),
@@ -184,6 +189,7 @@ class ActorsGrid extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 }

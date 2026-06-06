@@ -1,18 +1,19 @@
 import 'package:flutter/material.dart';
 import '../design_system/colors.dart';
-import '../design_system/spacing.dart';
-import '../design_system/typography.dart';
 import '../widgets/common/movies_grid.dart';
 import '../widgets/common/series_grid.dart';
 import '../widgets/common/actors_grid.dart';
 import '../models/movie_model.dart';
-import '../data/sample_data.dart';
+import '../models/series_model.dart';
+import '../services/search_service.dart';
+import 'actor_detail_screen.dart';
+import 'movie_detail_screen.dart';
+import 'series_detail_screen.dart';
 
 class SearchResultsScreen extends StatefulWidget {
   final String searchQuery;
 
-  const SearchResultsScreen({Key? key, required this.searchQuery})
-    : super(key: key);
+  const SearchResultsScreen({super.key, required this.searchQuery});
 
   @override
   State<SearchResultsScreen> createState() => _SearchResultsScreenState();
@@ -21,11 +22,43 @@ class SearchResultsScreen extends StatefulWidget {
 class _SearchResultsScreenState extends State<SearchResultsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  List<MovieApiModel> _searchResultsMovies = [];
+  List<SeriesApiModel> _searchResultsSeries = [];
+  List<ActorModel> _searchResultsActors = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _performSearch();
+  }
+
+  Future<void> _performSearch() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final results = await SearchService.search(widget.searchQuery);
+      if (mounted) {
+        setState(() {
+          _searchResultsMovies = results.movies;
+          _searchResultsSeries = [...results.series, ...results.animes];
+          _searchResultsActors = results.actors.map((actor) => actor.toActorModel()).toList();
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _searchResultsMovies = [];
+          _searchResultsSeries = [];
+          _searchResultsActors = [];
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -267,32 +300,60 @@ class _SearchResultsScreenState extends State<SearchResultsScreen>
 
             // Contenu des onglets
             Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  // Onglet Films
-                  MoviesGrid(
-                    movies: SampleData.popularMovies.take(6).toList(),
-                    isDarkMode: isDarkMode,
-                    countText:
-                        '${SampleData.popularMovies.take(6).length} films trouvés',
-                  ),
-                  // Onglet Séries
-                  SeriesGrid(
-                    series: SampleData.popularSeries.take(6).toList(),
-                    isDarkMode: isDarkMode,
-                    countText:
-                        '${SampleData.popularSeries.take(6).length} séries trouvées',
-                  ),
-                  // Onglet Acteurs
-                  ActorsGrid(
-                    actors: SampleData.actors.take(8).toList(),
-                    isDarkMode: isDarkMode,
-                    countText:
-                        '${SampleData.actors.take(8).length} acteurs trouvés',
-                  ),
-                ],
-              ),
+              child: _isLoading
+                  ? const Center(
+                      child: CircularProgressIndicator(color: Colors.red),
+                    )
+                  : TabBarView(
+                      controller: _tabController,
+                      children: [
+                        // Onglet Films
+                        MoviesGrid.api(
+                          apiMovies: _searchResultsMovies,
+                          isDarkMode: isDarkMode,
+                          countText: '${_searchResultsMovies.length} films trouvés',
+                          onApiMovieTap: (movie) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => MovieDetailScreen.fromApiMovie(movie),
+                              ),
+                            );
+                          },
+                        ),
+                        // Onglet Séries
+                        SeriesGrid.api(
+                          apiSeries: _searchResultsSeries,
+                          isDarkMode: isDarkMode,
+                          countText: '${_searchResultsSeries.length} séries trouvées',
+                          onApiSeriesTap: (series) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => SeriesDetailScreen.fromApiSeries(apiSeries: series),
+                              ),
+                            );
+                          },
+                        ),
+                        // Onglet Acteurs
+                        ActorsGrid(
+                          actors: _searchResultsActors,
+                          isDarkMode: isDarkMode,
+                          countText: '${_searchResultsActors.length} acteurs trouvés',
+                          onActorTap: (actor) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => ActorDetailScreen(
+                                  actorId: int.parse(actor.id),
+                                  actorName: actor.name,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
             ),
           ],
         ),

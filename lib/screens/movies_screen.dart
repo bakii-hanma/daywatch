@@ -3,13 +3,12 @@ import '../design_system/colors.dart';
 import '../widgets/common/movies_grid.dart';
 import '../widgets/common/genre_filter_bar.dart';
 import '../models/movie_model.dart';
-import '../data/sample_data.dart';
 import '../services/movie_service.dart';
 import 'movie_detail_screen.dart';
 import '../config/server_config.dart';
 
 class MoviesScreen extends StatefulWidget {
-  const MoviesScreen({Key? key}) : super(key: key);
+  const MoviesScreen({super.key});
 
   @override
   State<MoviesScreen> createState() => _MoviesScreenState();

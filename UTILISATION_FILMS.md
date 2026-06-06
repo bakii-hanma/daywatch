@@ -1,210 +1,75 @@
-# Utilisation des Films avec Nouvelles Routes API
+# Utilisation des Films avec les Routes API Standardisées
 
 ## Vue d'ensemble
 
-Le système a été mis à jour pour utiliser les nouvelles routes API pour les films :
-- **Route essentielle** : `GET /api/radarr/movies/essentials` - Pour la liste des films
-- **Route détaillée** : `GET /api/radarr/movies/{tmdbId}` - Pour les détails d'un film
+Le service de récupération des films de l'application mobile Flutter a été migré vers le nouveau contrôleur d'API standardisé sous le préfixe `/api/movies`. Ce nouveau service remplace l'ancienne API Radarr `/api/radarr/movies` par des routes plus spécifiques, optimisées et cohérentes.
 
-## Nouvelles Routes API
+---
 
-### 1. Films Essentiels (`/api/radarr/movies/essentials`)
+## Les 9 Routes de l'API Films
 
-Cette route retourne une liste de films avec les données essentielles :
+### 1. Liste complète et paginée (`GET /api/movies`)
+Retourne la liste complète de tous les films de la médiathèque.
+* **Méthode Dart** : `MovieService.getAllMovies()`
+* **Retour** : `Future<List<MovieApiModel>>`
 
-```json
-{
-  "success": true,
-  "message": "Films avec données essentielles récupérés",
-  "count": 8,
-  "data": [
-    {
-      "id": 4,
-      "tmdbId": 24428,
-      "title": "The Avengers",
-      "originalTitle": "The Avengers",
-      "rating": 7.772,
-      "poster": "https://image.tmdb.org/t/p/original/RYMX2wcKCBAr24UyPD7xwmjaTn.jpg",
-      "runtime": "2h 23",
-      "releaseDate": "25 avril 2012",
-      "genres": ["Science Fiction", "Action", "Adventure"],
-      "isAvailable": true
-    }
-  ]
-}
-```
+### 2. Détails d'un film (`GET /api/movies/:id`)
+Retourne les détails complets d'un film spécifique en utilisant son identifiant numérique local (Radarr) ou son TMDB ID au format `tmdb_XXXXX`.
+* **Méthode Dart** : `MovieService.getMovieById(dynamic id)` ou `MovieService.getMovieByTmdbId(int tmdbId)`
+* **Retour** : `Future<MovieApiModel?>`
 
-### 2. Détails d'un Film (`/api/radarr/movies/{tmdbId}`)
+### 3. Films bientôt disponibles (`GET /api/movies/coming-soon`)
+Retourne les films en cours d'attente ou annoncés qui sortiront bientôt.
+* **Méthode Dart** : `MovieService.getComingSoonMovies()`
+* **Retour** : `Future<List<MovieApiModel>>`
 
-Cette route retourne les détails complets d'un film :
+### 4. Films populaires (`GET /api/movies/popular`)
+Retourne les films populaires de la médiathèque en se basant sur les scores TMDB.
+* **Méthode Dart** : `MovieService.getPopularMovies({int limit = 10})`
+* **Retour** : `Future<List<MovieApiModel>>`
 
-```json
-{
-  "success": true,
-  "message": "Film trouvé avec succès",
-  "data": {
-    "id": "tmdb_24428",
-    "tmdbId": 24428,
-    "title": "Avengers",
-    "originalTitle": "The Avengers",
-    "overview": "Lorsque la sécurité et l'équilibre de la planète...",
-    "year": 2012,
-    "rating": 7.772,
-    "runtime": 145,
-    "budget": 220000000,
-    "revenue": 1518815515,
-    "isAvailable": false,
-    "images": {
-      "poster": "https://image.tmdb.org/t/p/w500/ylsAO88v2tF0iXRFojPa0UaAJf1.jpg",
-      "backdrop": "https://image.tmdb.org/t/p/w500/9BBTo63ANSmhC4e6r62OJFuK2GL.jpg"
-    },
-    "genres": [
-      {"id": 878, "name": "Science-Fiction"},
-      {"id": 28, "name": "Action"}
-    ],
-    "videos": [...],
-    "trailers": [...],
-    "cast": {...},
-    "gallery": {...},
-    "boxOffice": {...}
-  }
-}
-```
+### 5. Films récents (`GET /api/movies/recent`)
+Retourne les films récemment ajoutés à la médiathèque physique locale.
+* **Méthode Dart** : `MovieService.getRecentMovies({int limit = 10})`
+* **Retour** : `Future<List<MovieApiModel>>`
 
-## Utilisation dans le Code
+### 6. Ajouts récents - Version étendue (`GET /api/movies/recent-additions`)
+Retourne les ajouts récents de films avec des informations détaillées et complètes.
+* **Méthode Dart** : `MovieService.getRecentAdditions({int limit = 10})`
+* **Retour** : `Future<List<MovieApiModel>>`
 
-### Récupération des Films Essentiels
+### 7. Ajouts récents - Version allégée (`GET /api/movies/recent-additions/essentials`)
+Retourne la version légère (champs essentiels uniquement) des films récemment ajoutés pour optimiser les performances de chargement.
+* **Méthode Dart** : `MovieService.getRecentAdditionsEssentials({int limit = 10})`
+* **Retour** : `Future<List<MovieApiModel>>`
 
-```dart
-// Récupérer les films essentiels
-final movies = await MovieService.getEssentialMovies(limit: 20);
+### 8. Top Recommandations - Version étendue (`GET /api/movies/top-recommendations`)
+Retourne le catalogue complet des recommandations personnalisées avec tous les détails.
+* **Méthode Dart** : `MovieService.getTopRecommendationsFull({int limit = 5})`
+* **Retour** : `Future<List<MovieApiModel>>`
 
-// Ou utiliser les alias existants
-final recentMovies = await MovieService.getRecentMovies(limit: 10);
-final popularMovies = await MovieService.getPopularMovies(limit: 10);
-final allMovies = await MovieService.getAllMovies();
-```
+### 9. Top Recommandations - Version allégée (`GET /api/movies/top-recommendations/essentials`)
+Retourne une version légère des recommandations personnalisées pour la page d'accueil de l'application.
+* **Méthode Dart** : `MovieService.getTopRecommendations({int limit = 5})`
+* **Retour** : `Future<List<MovieApiModel>>`
 
-### Récupération des Détails d'un Film
-
-```dart
-// Récupérer les détails d'un film par son TMDB ID
-final movieDetails = await MovieService.getMovieByTmdbId(24428);
-
-// Ou utiliser l'alias existant
-final movieDetails = await MovieService.getMovieById(24428);
-```
+---
 
 ## Modèles de Données
 
-### MovieApiModel.fromEssentialJson()
+L'application Dart utilise deux méthodes de parsing selon les routes consommées :
 
-Cette méthode parse les données essentielles et extrait automatiquement :
-- **Année** : depuis `releaseDate` (ex: "25 avril 2012" → 2012)
-- **Durée** : depuis `runtime` (ex: "2h 23" → 143 minutes)
-- **Genres** : liste des genres
-- **Poster** : URL du poster
-- **Disponibilité** : statut `isAvailable`
+1. **`MovieApiModel.fromJson(json)`**
+   Pour les routes retournant la structure de données complète (ex: détails d'un film, films populaires, ajouts récents étendus). Elle inclut le cast, la galerie d'images, le box-office, et les métadonnées de fichier vidéo.
 
-### MovieApiModel.fromJson()
+2. **`MovieApiModel.fromEssentialJson(json)`**
+   Pour les routes retournant des informations allégées (ex: `essentials`). Elle extrait uniquement le titre, le poster, les genres et la disponibilité pour minimiser l'usage réseau.
 
-Cette méthode parse les données complètes avec :
-- Toutes les informations détaillées
-- Cast et équipe
-- Galerie d'images
-- Bandes-annonces
-- Données box office
-- Métadonnées techniques
+---
 
-## Migration
+## Compatibilité et Rétrocompatibilité
 
-Les anciennes méthodes continuent de fonctionner comme des alias :
-- `getRecentMovies()` → `getEssentialMovies()`
-- `getPopularMovies()` → `getEssentialMovies()`
-- `getAllMovies()` → `getEssentialMovies(limit: 100)`
-- `getMovieById()` → `getMovieByTmdbId()`
-
-## Avantages des Nouvelles Routes
-
-1. **Performance** : Les données essentielles sont plus légères
-2. **Flexibilité** : Séparation entre liste et détails
-3. **Enrichissement** : Données TMDB complètes pour les détails
-4. **Compatibilité** : Les anciens appels continuent de fonctionner
-
-## Exemple d'Utilisation Complète
-
-```dart
-class MovieScreen extends StatefulWidget {
-  @override
-  _MovieScreenState createState() => _MovieScreenState();
-}
-
-class _MovieScreenState extends State<MovieScreen> {
-  List<MovieApiModel> movies = [];
-  bool isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadMovies();
-  }
-
-  Future<void> _loadMovies() async {
-    try {
-      final essentialMovies = await MovieService.getEssentialMovies(limit: 20);
-      setState(() {
-        movies = essentialMovies;
-        isLoading = false;
-      });
-    } catch (e) {
-      print('Erreur lors du chargement des films: $e');
-      setState(() {
-        isLoading = false;
-      });
-    }
-  }
-
-  Future<void> _loadMovieDetails(int tmdbId) async {
-    try {
-      final movieDetails = await MovieService.getMovieByTmdbId(tmdbId);
-      if (movieDetails != null) {
-        // Naviguer vers l'écran de détails
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => MovieDetailScreen(movie: movieDetails),
-          ),
-        );
-      }
-    } catch (e) {
-      print('Erreur lors du chargement des détails: $e');
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (isLoading) {
-      return Center(child: CircularProgressIndicator());
-    }
-
-    return ListView.builder(
-      itemCount: movies.length,
-      itemBuilder: (context, index) {
-        final movie = movies[index];
-        return MovieCard(
-          movie: movie,
-          onTap: () => _loadMovieDetails(movie.tmdbId),
-        );
-      },
-    );
-  }
-}
-```
-
-## Notes Importantes
-
-1. **TMDB ID** : Les nouvelles routes utilisent le TMDB ID comme identifiant principal
-2. **Données Essentielles** : Contiennent uniquement les informations de base pour les listes
-3. **Données Complètes** : Disponibles uniquement via la route de détails
-4. **Rétrocompatibilité** : Tous les anciens appels continuent de fonctionner
-5. **Performance** : Les listes sont plus rapides grâce aux données essentielles 
+Pour assurer une transition sans encombre :
+* L'ancienne méthode `getEssentialMovies()` est préservée et appelle de manière transparente `/api/movies`.
+* Les méthodes existantes `getRecentMovies()`, `getPopularMovies()` et `getAllMovies()` ont été refactorées pour interroger directement les nouvelles routes d'API dédiées au lieu de simuler des alias.
+* Les tests de connectivité (`testConnection()`) interrogent désormais la racine de l'API des films `/api/movies?limit=1`.

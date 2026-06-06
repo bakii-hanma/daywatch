@@ -15,9 +15,10 @@ class MovieCard extends StatelessWidget {
   final VoidCallback? onTap;
   final VoidCallback? onFavoriteTap;
   final bool isNetworkImage;
+  final bool isFavorite;
 
   const MovieCard({
-    Key? key,
+    super.key,
     required this.imagePath,
     required this.title,
     required this.genre,
@@ -28,12 +29,49 @@ class MovieCard extends StatelessWidget {
     this.onTap,
     this.onFavoriteTap,
     this.isNetworkImage = false,
-  }) : super(key: key);
+    this.isFavorite = false,
+  });
+
+  static String _formatDuration(int runtime) {
+    if (runtime <= 0) return 'Non défini';
+    if (runtime < 60) return '${runtime}min';
+    final hours = runtime ~/ 60;
+    final minutes = runtime % 60;
+    return minutes > 0 ? '${hours}h${minutes}min' : '${hours}h';
+  }
+
+  static String _formatDurationString(String durationStr) {
+    if (durationStr.contains('h')) {
+      final regex = RegExp(r'(\d+)\s*h\s*(\d+)?\s*(?:min)?');
+      final match = regex.firstMatch(durationStr);
+      if (match != null) {
+        final hours = match.group(1);
+        final minutes = match.group(2);
+        if (minutes != null && minutes.isNotEmpty && int.parse(minutes) > 0) {
+          return '${hours}h${minutes}min';
+        } else {
+          return '${hours}h';
+        }
+      }
+      return durationStr;
+    }
+
+    final numericRegex = RegExp(r'(\d+)');
+    final match = numericRegex.firstMatch(durationStr);
+    if (match != null) {
+      final minutes = int.tryParse(match.group(1) ?? '');
+      if (minutes != null) {
+        return _formatDuration(minutes);
+      }
+    }
+    return durationStr;
+  }
 
   // Constructeur pour les films de l'API
   factory MovieCard.fromApiModel({
     required MovieApiModel movie,
     required bool isDarkMode,
+    bool isFavorite = false,
     VoidCallback? onTap,
     VoidCallback? onFavoriteTap,
   }) {
@@ -41,13 +79,14 @@ class MovieCard extends StatelessWidget {
       imagePath: movie.images.poster ?? '',
       title: movie.title,
       genre: movie.genres.isNotEmpty ? movie.genres.first : 'Non défini',
-      duration: '${movie.runtime}min',
+      duration: _formatDuration(movie.runtime),
       releaseDate: movie.year.toString(),
       rating: movie.rating,
       isDarkMode: isDarkMode,
       onTap: onTap,
       onFavoriteTap: onFavoriteTap,
       isNetworkImage: true,
+      isFavorite: isFavorite,
     );
   }
 
@@ -55,6 +94,7 @@ class MovieCard extends StatelessWidget {
   factory MovieCard.fromModel({
     required MovieModel movie,
     required bool isDarkMode,
+    bool isFavorite = false,
     VoidCallback? onTap,
     VoidCallback? onFavoriteTap,
   }) {
@@ -69,16 +109,18 @@ class MovieCard extends StatelessWidget {
       onTap: onTap,
       onFavoriteTap: onFavoriteTap,
       isNetworkImage: false,
+      isFavorite: isFavorite,
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final formattedDuration = _formatDurationString(duration);
     return GestureDetector(
       onTap: onTap,
       child: Container(
         width: 150,
-        height: 250,
+        height: 280,
         decoration: BoxDecoration(
           color: AppColors.getWidgetBackgroundColor(isDarkMode),
           borderRadius: BorderRadius.circular(AppSpacing.radiusMedium),
@@ -94,9 +136,9 @@ class MovieCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Image avec note et icône favoris
-            Container(
+            SizedBox(
               width: 150,
-              height: 225,
+              height: 200,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(AppSpacing.radiusMedium),
                 child: Stack(
@@ -135,18 +177,19 @@ class MovieCard extends StatelessWidget {
                       ),
                     ),
                     // Icône favoris en haut à droite
-                    Positioned(
-                      top: AppSpacing.sm,
-                      right: AppSpacing.sm,
-                      child: GestureDetector(
-                        onTap: onFavoriteTap,
-                        child: const Icon(
-                          Icons.bookmark,
-                          color: AppColors.primary,
-                          size: 25,
+                    if (onFavoriteTap != null)
+                      Positioned(
+                        top: AppSpacing.sm,
+                        right: AppSpacing.sm,
+                        child: GestureDetector(
+                          onTap: onFavoriteTap,
+                          child: Icon(
+                            isFavorite ? Icons.bookmark : Icons.bookmark_border,
+                            color: isFavorite ? AppColors.primary : Colors.white,
+                            size: 25,
+                          ),
                         ),
                       ),
-                    ),
                   ],
                 ),
               ),
@@ -184,7 +227,7 @@ class MovieCard extends StatelessWidget {
                   // Durée et date
                   Row(
                     children: [
-                      _buildInfoBadge(duration, isDarkMode),
+                      _buildInfoBadge(formattedDuration, isDarkMode),
                       const SizedBox(width: 6),
                       _buildInfoBadge(releaseDate, isDarkMode),
                     ],
@@ -208,42 +251,65 @@ class MovieCard extends StatelessWidget {
       );
     }
 
-    print('🖼️ Tentative de chargement image réseau: "$imagePath"');
-    return Image.network(
-      imagePath,
-      width: double.infinity,
-      height: double.infinity,
-      fit: BoxFit.cover,
-      loadingBuilder: (context, child, loadingProgress) {
-        if (loadingProgress == null) {
-          print('✅ Image chargée avec succès: "$imagePath"');
-          return child;
-        }
-        print('⏳ Chargement en cours: "$imagePath"');
-        return Container(
-          width: double.infinity,
-          height: double.infinity,
-          color: AppColors.textSecondaryLight.withOpacity(0.3),
-          child: const Center(
-            child: CircularProgressIndicator(color: AppColors.primary),
-          ),
-        );
-      },
-      errorBuilder: (context, error, stackTrace) {
-        print('❌ Erreur chargement image: "$imagePath"');
-        print('   Error: $error');
-        return Container(
-          width: double.infinity,
-          height: double.infinity,
-          color: AppColors.textSecondaryLight,
-          child: const Icon(
-            Icons.broken_image,
-            color: AppColors.white,
-            size: 50,
-          ),
-        );
-      },
-    );
+    String resolvedImagePath = imagePath;
+    if (imagePath.startsWith('/')) {
+      resolvedImagePath = 'https://api.daywatch.online$imagePath';
+    }
+
+    final isNetwork = isNetworkImage ||
+        resolvedImagePath.startsWith('http://') ||
+        resolvedImagePath.startsWith('https://');
+
+    if (isNetwork) {
+      return Image.network(
+        resolvedImagePath,
+        width: double.infinity,
+        height: double.infinity,
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Container(
+            width: double.infinity,
+            height: double.infinity,
+            color: AppColors.textSecondaryLight.withOpacity(0.3),
+            child: const Center(
+              child: CircularProgressIndicator(color: AppColors.primary),
+            ),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            width: double.infinity,
+            height: double.infinity,
+            color: AppColors.textSecondaryLight,
+            child: const Icon(
+              Icons.broken_image,
+              color: AppColors.white,
+              size: 50,
+            ),
+          );
+        },
+      );
+    } else {
+      return Image.asset(
+        resolvedImagePath,
+        width: double.infinity,
+        height: double.infinity,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            width: double.infinity,
+            height: double.infinity,
+            color: AppColors.textSecondaryLight,
+            child: const Icon(
+              Icons.broken_image,
+              color: AppColors.white,
+              size: 50,
+            ),
+          );
+        },
+      );
+    }
   }
 
   Widget _buildInfoBadge(String text, bool isDarkMode) {

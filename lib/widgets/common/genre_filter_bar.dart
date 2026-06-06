@@ -7,11 +7,11 @@ class GenreFilterBar extends StatelessWidget {
   final Function(String) onGenreSelected;
 
   const GenreFilterBar({
-    Key? key,
+    super.key,
     required this.genres,
     required this.selectedGenre,
     required this.onGenreSelected,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

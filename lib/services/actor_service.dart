@@ -1,7 +1,5 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-import '../config/server_config.dart';
 import '../models/movie_model.dart';
+import 'api_client.dart';
 
 class ActorApiModel {
   final int id;
@@ -377,50 +375,44 @@ class ActorService {
     int offset = 0,
   }) async {
     try {
-      final url = Uri.parse(
-        '${ServerConfig.apiBaseUrl}/api/actors?limit=$limit&offset=$offset',
+      final endpoint = '/api/actors?limit=$limit&offset=$offset';
+
+      final response = await ApiClient.get<Map<String, dynamic>>(
+        endpoint,
+        timeout: const Duration(seconds: 45), // L'API d'acteurs est lourde
       );
-      print('🎬 Récupération des acteurs depuis: $url');
 
-      final response = await http.get(url);
-      print('📡 Code de réponse: ${response.statusCode}');
-
-      if (response.statusCode == 200) {
-        final jsonData = json.decode(response.body);
-        print('✅ Acteurs récupérés avec succès: ${jsonData['count']} acteurs');
+      if (response.isSuccess && response.data != null) {
+        final jsonData = response.data!;
         return ActorResponse.fromJson(jsonData);
       } else {
-        print('❌ Erreur HTTP: ${response.statusCode}');
         throw Exception(
-          'Erreur lors de la récupération des acteurs: ${response.statusCode}',
+          'Erreur lors de la récupération des acteurs: ${response.error}',
         );
       }
     } catch (e) {
-      print('❌ Erreur lors de la récupération des acteurs: $e');
       throw Exception('Erreur de connexion: $e');
     }
   }
 
   static Future<ActorDetailResponse> getActorDetails(int actorId) async {
     try {
-      final url = Uri.parse('${ServerConfig.apiBaseUrl}/api/actors/$actorId');
-      print('🎬 Récupération des détails de l\'acteur $actorId depuis: $url');
+      final endpoint = '/api/actors/$actorId';
 
-      final response = await http.get(url);
-      print('📡 Code de réponse: ${response.statusCode}');
+      final response = await ApiClient.get<Map<String, dynamic>>(
+        endpoint,
+        timeout: const Duration(seconds: 45), // L'API d'acteurs est lourde
+      );
 
-      if (response.statusCode == 200) {
-        final jsonData = json.decode(response.body);
-        print('✅ Détails de l\'acteur récupérés avec succès');
+      if (response.isSuccess && response.data != null) {
+        final jsonData = response.data!;
         return ActorDetailResponse.fromJson(jsonData);
       } else {
-        print('❌ Erreur HTTP: ${response.statusCode}');
         throw Exception(
-          'Erreur lors de la récupération des détails de l\'acteur: ${response.statusCode}',
+          'Erreur lors de la récupération des détails de l\'acteur: ${response.error}',
         );
       }
     } catch (e) {
-      print('❌ Erreur lors de la récupération des détails de l\'acteur: $e');
       throw Exception('Erreur de connexion: $e');
     }
   }

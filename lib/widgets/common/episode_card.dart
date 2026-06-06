@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../../design_system/colors.dart';
 import '../../models/series_model.dart';
 import '../../screens/episode_player_screen.dart';
-import '../../config/server_config.dart';
 
 class EpisodeCard extends StatelessWidget {
   final String imagePath;
@@ -16,7 +15,7 @@ class EpisodeCard extends StatelessWidget {
   final EpisodeApiModel? episode; // Nouveau paramètre pour l'épisode API
 
   const EpisodeCard({
-    Key? key,
+    super.key,
     required this.imagePath,
     required this.title,
     required this.duration,
@@ -26,23 +25,22 @@ class EpisodeCard extends StatelessWidget {
     required this.isDarkMode,
     this.onTap,
     this.episode, // Nouveau paramètre optionnel
-  }) : super(key: key);
+  });
 
   // Constructeur pour les épisodes API
   EpisodeCard.fromApi({
-    Key? key,
+    super.key,
     required this.episode,
     required this.isDarkMode,
   }) : imagePath =
            episode!.stillPath ??
-           (episode!.images.isNotEmpty ? episode!.images.first.remoteUrl : ''),
-       title = episode!.title,
-       duration = '${episode!.runtime} min',
-       description = episode!.overview,
-       episodeNumber = episode!.episodeNumber,
-       rating = episode!.rating,
-       onTap = null,
-       super(key: key);
+           (episode.images.isNotEmpty ? episode.images.first.remoteUrl : ''),
+       title = episode.title,
+       duration = '${episode.runtime} min',
+       description = episode.overview,
+       episodeNumber = episode.episodeNumber,
+       rating = episode.rating,
+       onTap = null;
 
   void _launchEpisodePlayer(BuildContext context) {
     if (episode == null || episode!.file == null) {

@@ -9,8 +9,7 @@ import '../models/tv_channel_model.dart';
 class SimpleTvPlayerScreen extends StatefulWidget {
   final TvChannelModel channel;
 
-  const SimpleTvPlayerScreen({Key? key, required this.channel})
-    : super(key: key);
+  const SimpleTvPlayerScreen({super.key, required this.channel});
 
   @override
   State<SimpleTvPlayerScreen> createState() => _SimpleTvPlayerScreenState();

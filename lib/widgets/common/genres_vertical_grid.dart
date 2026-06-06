@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../design_system/colors.dart';
-import '../../design_system/spacing.dart';
 
 class GenreItem {
   final String name;
@@ -14,10 +12,10 @@ class GenresVerticalGrid extends StatelessWidget {
   final bool isDarkMode;
 
   const GenresVerticalGrid({
-    Key? key,
+    super.key,
     required this.genres,
     required this.isDarkMode,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

@@ -8,8 +8,6 @@ class TvChannelService {
     int limit = 50,
   }) async {
     try {
-      print('📺 Récupération des chaînes TV - Page $page, Limite $limit');
-
       final channels = await ApiClient.getAllTvChannels<TvChannelModel>(
         page: page,
         limit: limit,
@@ -21,12 +19,8 @@ class TvChannelService {
           .where((channel) => !channel.isNsfw)
           .toList();
 
-      print(
-        '✅ Chaînes TV récupérées: ${channels.length} (${filteredChannels.length} après filtrage NSFW)',
-      );
       return filteredChannels;
     } catch (e) {
-      print('❌ Erreur getAllChannels: $e');
       return [];
     }
   }
@@ -34,8 +28,6 @@ class TvChannelService {
   // Récupérer un nombre limité de chaînes pour la page d'accueil
   static Future<List<TvChannelModel>> getHomeChannels({int limit = 8}) async {
     try {
-      print('📺 Récupération des chaînes TV d\'accueil - Limite $limit');
-
       final channels = await ApiClient.getHomeTvChannels<TvChannelModel>(
         limit: limit,
         fromJson: TvChannelModel.fromJson,
@@ -46,10 +38,8 @@ class TvChannelService {
           .where((channel) => !channel.isNsfw)
           .toList();
 
-      print('✅ Chaînes TV d\'accueil récupérées: ${filteredChannels.length}');
       return filteredChannels;
     } catch (e) {
-      print('❌ Erreur getHomeChannels: $e');
       return [];
     }
   }
@@ -59,8 +49,6 @@ class TvChannelService {
     String category,
   ) async {
     try {
-      print('📺 Récupération des chaînes TV par catégorie: $category');
-
       final channels = await ApiClient.getTvChannelsByCategory<TvChannelModel>(
         category,
         limit: 100,
@@ -72,12 +60,8 @@ class TvChannelService {
           .where((channel) => !channel.isNsfw)
           .toList();
 
-      print(
-        '✅ Chaînes TV par catégorie "$category": ${filteredChannels.length}',
-      );
       return filteredChannels;
     } catch (e) {
-      print('❌ Erreur getChannelsByCategory: $e');
       return [];
     }
   }
@@ -88,10 +72,6 @@ class TvChannelService {
     int limitPerPage = 50,
   }) async {
     try {
-      print(
-        '📺 Récupération multi-pages des chaînes TV - Max $maxPages pages, $limitPerPage par page',
-      );
-
       final channels =
           await ApiClient.getAllTvChannelsMultiPage<TvChannelModel>(
             maxPages: maxPages,
@@ -104,10 +84,8 @@ class TvChannelService {
           .where((channel) => !channel.isNsfw)
           .toList();
 
-      print('✅ Total chaînes TV multi-pages: ${filteredChannels.length}');
       return filteredChannels;
     } catch (e) {
-      print('❌ Erreur getAllChannelsMultiPage: $e');
       return [];
     }
   }
@@ -115,8 +93,6 @@ class TvChannelService {
   // Récupérer une chaîne par ID
   static Future<TvChannelModel?> getChannelById(String channelId) async {
     try {
-      print('📺 Récupération de la chaîne TV par ID: $channelId');
-
       final response = await ApiClient.getTvChannelById<TvChannelModel>(
         channelId,
         fromJson: TvChannelModel.fromJson,
@@ -125,18 +101,14 @@ class TvChannelService {
       if (response.isSuccess && response.data != null) {
         final channel = response.data!;
         if (!channel.isNsfw) {
-          print('✅ Chaîne TV récupérée: ${channel.name}');
           return channel;
         } else {
-          print('⚠️ Chaîne TV NSFW filtrée: ${channel.name}');
           return null;
         }
       } else {
-        print('❌ Chaîne TV non trouvée: $channelId');
         return null;
       }
     } catch (e) {
-      print('❌ Erreur getChannelById: $e');
       return null;
     }
   }
@@ -144,18 +116,14 @@ class TvChannelService {
   // Obtenir la liste des catégories disponibles
   static Future<List<String>> getAvailableCategories() async {
     try {
-      print('📺 Récupération des catégories de chaînes TV disponibles');
-
       final categories = await ApiClient.getTvChannelCategories<TvChannelModel>(
         sampleSize: 100,
         fromJson: TvChannelModel.fromJson,
         getCategory: (channel) => channel.category,
       );
 
-      print('✅ Catégories disponibles: ${categories.length}');
       return categories;
     } catch (e) {
-      print('❌ Erreur getAvailableCategories: $e');
       return [
         'Toutes',
         'Généralistes',
@@ -171,18 +139,9 @@ class TvChannelService {
   // Tester la connectivité avec le serveur
   static Future<bool> testConnection() async {
     try {
-      print('🧪 Test de connectivité des chaînes TV');
-
       final isConnected = await ApiClient.testConnection();
-
-      print(
-        isConnected
-            ? '✅ Connectivité chaînes TV confirmée'
-            : '❌ Test de connexion chaînes TV échoué',
-      );
       return isConnected;
     } catch (e) {
-      print('❌ Test de connexion chaînes TV échoué: $e');
       return false;
     }
   }

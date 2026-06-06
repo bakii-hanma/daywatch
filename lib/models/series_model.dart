@@ -75,39 +75,26 @@ class SeriesApiModel {
     // Si les champs directs sont vides, essayer de les extraire depuis le tableau images (fallback)
     if (poster.isEmpty || banner.isEmpty || fanart.isEmpty) {
       final List<dynamic> images = json['images'] ?? [];
-      print('🖼️ Images trouvées pour ${json['title']}: ${images.length}');
 
       for (var image in images) {
         final String coverType = image['coverType'] ?? '';
         final String remoteUrl = image['remoteUrl'] ?? '';
-
-        print('   - $coverType: $remoteUrl');
 
         // Prendre uniquement les remoteUrl (comme pour les films)
         if (remoteUrl.isNotEmpty) {
           switch (coverType) {
             case 'poster':
               if (poster.isEmpty) poster = remoteUrl;
-              print('   ✅ Poster assigné: $poster');
               break;
             case 'banner':
               if (banner.isEmpty) banner = remoteUrl;
-              print('   ✅ Banner assigné: $banner');
               break;
             case 'fanart':
               if (fanart.isEmpty) fanart = remoteUrl;
-              print('   ✅ Fanart assigné: $fanart');
               break;
           }
         }
       }
-    } else {
-      print(
-        '🖼️ Images récupérées directement depuis la réponse JSON pour ${json['title']}',
-      );
-      print('   📸 Poster: ${poster.isNotEmpty ? "✅" : "❌"} $poster');
-      print('   🎭 Banner: ${banner.isNotEmpty ? "✅" : "❌"} $banner');
-      print('   🖼️ Fanart: ${fanart.isNotEmpty ? "✅" : "❌"} $fanart');
     }
 
     // Extraire les épisodes si disponibles dans la réponse
@@ -241,9 +228,9 @@ class SeriesApiModel {
 
     // Log final pour vérifier les images récupérées
     print('🎬 Série créée: ${json['title']}');
-    print('   📸 Poster final: ${poster.isEmpty ? "❌ VIDE" : "✅ " + poster}');
-    print('   🎭 Banner final: ${banner.isEmpty ? "❌ VIDE" : "✅ " + banner}');
-    print('   🖼️ Fanart final: ${fanart.isEmpty ? "❌ VIDE" : "✅ " + fanart}');
+    print('   📸 Poster final: ${poster.isEmpty ? "❌ VIDE" : "✅ $poster"}');
+    print('   🎭 Banner final: ${banner.isEmpty ? "❌ VIDE" : "✅ $banner"}');
+    print('   🖼️ Fanart final: ${fanart.isEmpty ? "❌ VIDE" : "✅ $fanart"}');
   }
 
   Map<String, dynamic> toJson() {
@@ -382,12 +369,6 @@ class SeriesApiModel {
       episodesList: episodeModels,
     );
 
-    print('🎬 SeasonModel créé pour la saison $seasonNumber:');
-    print('   📸 Poster: ${seasonModel.poster ?? "Non disponible"}');
-    print('   🖼️ Fanart: ${seasonModel.fanart ?? "Non disponible"}');
-    print('   🎭 Banner: ${seasonModel.banner ?? "Non disponible"}');
-    print('   📺 Épisodes: ${episodeModels.length}');
-
     return seasonModel;
   }
 }
@@ -491,21 +472,16 @@ class Season {
     String banner = json['banner'] ?? '';
     String fanart = json['fanart'] ?? '';
 
-    print('🖼️ Processing saison ${json['number']} - ${json['title']}');
-
     // Si les champs directs sont vides, essayer de les extraire depuis l'objet images
     if (poster.isEmpty || banner.isEmpty || fanart.isEmpty) {
       final Map<String, dynamic>? imagesMap = json['images'];
 
       if (imagesMap != null) {
-        print('   📸 Images map trouvée avec clés: ${imagesMap.keys.toList()}');
-
         // Extraire les posters
         if (imagesMap['posters'] is List && poster.isEmpty) {
           final List<dynamic> posters = imagesMap['posters'] as List<dynamic>;
           if (posters.isNotEmpty) {
             poster = posters.first['url'] ?? posters.first['filePath'] ?? '';
-            print('   ✅ Poster de saison depuis images: $poster');
           }
         }
 
@@ -514,7 +490,6 @@ class Season {
           final List<dynamic> banners = imagesMap['banners'] as List<dynamic>;
           if (banners.isNotEmpty) {
             banner = banners.first['url'] ?? banners.first['filePath'] ?? '';
-            print('   ✅ Banner de saison depuis images: $banner');
           }
         }
 
@@ -523,44 +498,31 @@ class Season {
           final List<dynamic> fanarts = imagesMap['fanart'] as List<dynamic>;
           if (fanarts.isNotEmpty) {
             fanart = fanarts.first['url'] ?? fanarts.first['filePath'] ?? '';
-            print('   ✅ Fanart de saison depuis images: $fanart');
           }
         }
       } else {
         // Fallback : essayer l'ancien format (tableau images)
         final List<dynamic> images = json['images'] ?? [];
-        print(
-          '   📋 Fallback: Images trouvées pour la saison ${json['number']}: ${images.length}',
-        );
 
         for (var image in images) {
           final String coverType = image['coverType'] ?? '';
           final String remoteUrl = image['remoteUrl'] ?? '';
 
-          print('     - $coverType: $remoteUrl');
-
           if (remoteUrl.isNotEmpty) {
             switch (coverType) {
               case 'poster':
                 if (poster.isEmpty) poster = remoteUrl;
-                print('     ✅ Poster de saison assigné: $poster');
                 break;
               case 'banner':
                 if (banner.isEmpty) banner = remoteUrl;
-                print('     ✅ Banner de saison assigné: $banner');
                 break;
               case 'fanart':
                 if (fanart.isEmpty) fanart = remoteUrl;
-                print('     ✅ Fanart de saison assigné: $fanart');
                 break;
             }
           }
         }
       }
-    } else {
-      print(
-        '   📸 Images récupérées directement depuis les champs poster/banner/fanart',
-      );
     }
 
     return Season(
@@ -1007,16 +969,9 @@ class EpisodeApiModel {
       }
 
       // Si stillPath n'est pas défini, prendre la première image de la galerie
-      if (stillPath == null || stillPath.isEmpty) {
+      if (stillPath.isEmpty) {
         stillPath = gallery.stills.first.filePath;
       }
-    }
-
-    print(
-      '📺 Épisode ${json['episodeNumber']}: ${episodeImages.length} images trouvées',
-    );
-    if (stillPath != null && stillPath.isNotEmpty) {
-      print('   🖼️ StillPath final: $stillPath');
     }
 
     return EpisodeApiModel(
@@ -1102,7 +1057,7 @@ class EpisodeApiModel {
       id: id.toString(),
       title: title,
       imagePath: stillPath ?? (images.isNotEmpty ? images.first.remoteUrl : ''),
-      duration: runtime > 0 ? '${runtime} min' : 'Inconnue',
+      duration: runtime > 0 ? '$runtime min' : 'Inconnue',
       description: overview,
       episodeNumber: episodeNumber,
       rating: rating,

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'dart:ui';
 import '../design_system/colors.dart';
 import '../design_system/spacing.dart';
-import '../design_system/typography.dart';
 import '../widgets/daywatch_logo.dart';
+import '../services/api_client.dart';
+import '../utils/alert_utils.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -49,19 +49,57 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
     super.dispose();
   }
 
-  void _sendResetEmail() {
-    // Logique pour envoyer l'email de réinitialisation
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Email de réinitialisation envoyé !'),
-        backgroundColor: Color(0xFFE53E3E),
-      ),
-    );
+  bool _isLoading = false;
 
-    // Retourner à l'écran de connexion après un délai
-    Future.delayed(const Duration(seconds: 2), () {
-      Navigator.pop(context);
-    });
+  Future<void> _sendResetEmail() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty) {
+      AlertUtils.showError(
+        context: context,
+        message: 'Veuillez saisir votre adresse e-mail.',
+        debugDetails: 'Email vide',
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final response = await ApiClient.forgotPassword<Map<String, dynamic>>(
+        body: {'email': email},
+      );
+
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+
+      if (response.isSuccess) {
+        AlertUtils.showSuccess(
+          context: context,
+          message: response.data?['message'] ?? 'Si le compte existe, un e-mail de réinitialisation a été envoyé !',
+          debugDetails: 'Demande réinitialisation réussie pour: $email',
+        );
+
+        // Retourner à l'écran de connexion après un délai
+        final navigator = Navigator.of(context);
+        Future.delayed(const Duration(seconds: 2), () {
+          navigator.pop();
+        });
+      } else {
+        AlertUtils.showError(
+          context: context,
+          message: response.error ?? 'Une erreur est survenue.',
+          debugDetails: 'Échec demande réinitialisation: ${response.error}',
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      AlertUtils.showError(
+        context: context,
+        message: 'Une erreur inattendue est survenue.',
+        debugDetails: 'Exception demande réinitialisation: $e',
+      );
+    }
   }
 
   @override
@@ -277,7 +315,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
                   width: double.infinity,
                   height: 50,
                   child: ElevatedButton(
-                    onPressed: _sendResetEmail,
+                    onPressed: _isLoading ? null : _sendResetEmail,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFE53E3E),
                       foregroundColor: Colors.white,
@@ -286,15 +324,25 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
                       ),
                       elevation: 0,
                     ),
-                    child: const Text(
-                      'Envoyer',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Text(
+                            'Envoyer',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                   ),
                 ),
+
                 const SizedBox(height: 16),
 
                 // Lien retour connexion

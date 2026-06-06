@@ -3,11 +3,13 @@ import '../design_system/colors.dart';
 import '../design_system/typography.dart';
 import '../widgets/common/marquee_text.dart';
 import '../models/movie_model.dart';
-import '../data/sample_data.dart';
+import '../models/series_model.dart';
+import '../services/download_service.dart';
 import 'movie_detail_screen.dart';
+import 'series_detail_screen.dart';
 
 class DownloadsScreen extends StatefulWidget {
-  const DownloadsScreen({Key? key}) : super(key: key);
+  const DownloadsScreen({super.key});
 
   @override
   State<DownloadsScreen> createState() => _DownloadsScreenState();
@@ -16,6 +18,38 @@ class DownloadsScreen extends StatefulWidget {
 class _DownloadsScreenState extends State<DownloadsScreen> {
   bool _isSelectionMode = false;
   final Set<String> _selectedItems = {};
+  
+  List<MovieApiModel> _downloadedMovies = [];
+  List<SeriesApiModel> _downloadedSeries = [];
+  bool _isLoading = true;
+
+  String _storageUsedString = '0.0 GB';
+  String _moviesSizeString = '0.0 GB';
+  String _seriesSizeString = '0.0 GB';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDownloads();
+  }
+
+  Future<void> _loadDownloads() async {
+    setState(() => _isLoading = true);
+    final movies = await DownloadService.getDownloadedMovies();
+    final series = await DownloadService.getDownloadedSeries();
+    final storageStr = await DownloadService.getStorageUsedString();
+    
+    if (mounted) {
+      setState(() {
+        _downloadedMovies = movies;
+        _downloadedSeries = series;
+        _storageUsedString = storageStr;
+        _moviesSizeString = '${(movies.length * 1.2).toStringAsFixed(1)} GB';
+        _seriesSizeString = '${(series.length * 0.6).toStringAsFixed(1)} GB';
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +68,9 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
               _buildHeader(isDarkMode, textColor),
 
               // Informations de stockage
-              _buildStorageInfo(isDarkMode),
+              _isLoading 
+                  ? const SizedBox(height: 100, child: Center(child: CircularProgressIndicator()))
+                  : _buildStorageInfo(isDarkMode),
 
               // Barre d'actions en mode sélection
               if (_isSelectionMode) _buildSelectionActions(isDarkMode),
@@ -44,12 +80,14 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
 
               // Contenu des onglets
               Expanded(
-                child: TabBarView(
-                  children: [
-                    _buildDownloadsList(isDarkMode, true),
-                    _buildDownloadsList(isDarkMode, false),
-                  ],
-                ),
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : TabBarView(
+                        children: [
+                          _buildDownloadsList(isDarkMode, true),
+                          _buildDownloadsList(isDarkMode, false),
+                        ],
+                      ),
               ),
             ],
           ),
@@ -142,6 +180,15 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
   }
 
   Widget _buildStorageInfo(bool isDarkMode) {
+    // Calcul de la jauge sur un max simulé de 32 Go
+    final totalElements = _downloadedMovies.length + _downloadedSeries.length;
+    double progress = 0.0;
+    try {
+      final sizeStr = _storageUsedString.split(' ')[0];
+      final size = double.tryParse(sizeStr) ?? 0.0;
+      progress = size / 32.0;
+    } catch (_) {}
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       padding: const EdgeInsets.all(16),
@@ -166,7 +213,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                 ),
               ),
               Text(
-                '2.8 GB / 32 GB',
+                '$_storageUsedString / 32 GB',
                 style: TextStyle(
                   color: AppColors.getTextSecondaryColor(isDarkMode),
                   fontSize: 14,
@@ -179,7 +226,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
-              value: 0.08,
+              value: progress.clamp(0.0, 1.0),
               backgroundColor: AppColors.getTextSecondaryColor(
                 isDarkMode,
               ).withOpacity(0.2),
@@ -191,8 +238,8 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildStorageDetail('Films', '1.9 GB', '6 éléments', isDarkMode),
-              _buildStorageDetail('Séries', '0.9 GB', '4 éléments', isDarkMode),
+              _buildStorageDetail('Films', _moviesSizeString, '${_downloadedMovies.length} éléments', isDarkMode),
+              _buildStorageDetail('Séries', _seriesSizeString, '${_downloadedSeries.length} éléments', isDarkMode),
             ],
           ),
         ],
@@ -292,11 +339,11 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                           onTap: () =>
                               DefaultTabController.of(context).animateTo(0),
                           child: AnimatedBuilder(
-                            animation: DefaultTabController.of(context)!,
+                            animation: DefaultTabController.of(context),
                             builder: (context, child) {
                               final tabController = DefaultTabController.of(
                                 context,
-                              )!;
+                              );
                               final isSelected = tabController.index == 0;
                               return Container(
                                 padding: const EdgeInsets.symmetric(
@@ -337,11 +384,11 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                           onTap: () =>
                               DefaultTabController.of(context).animateTo(1),
                           child: AnimatedBuilder(
-                            animation: DefaultTabController.of(context)!,
+                            animation: DefaultTabController.of(context),
                             builder: (context, child) {
                               final tabController = DefaultTabController.of(
                                 context,
-                              )!;
+                              );
                               final isSelected = tabController.index == 1;
                               return Container(
                                 padding: const EdgeInsets.symmetric(
@@ -385,9 +432,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
   }
 
   Widget _buildDownloadsList(bool isDarkMode, bool isMovies) {
-    final items = isMovies
-        ? SampleData.popularMovies.take(6).toList()
-        : SampleData.popularSeries.take(4).toList();
+    final items = isMovies ? _downloadedMovies : _downloadedSeries;
 
     if (items.isEmpty) {
       return _buildEmptyState(isDarkMode, isMovies);
@@ -398,7 +443,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
       itemCount: items.length,
       itemBuilder: (context, index) {
         final item = items[index];
-        final itemId = '${isMovies ? 'movie' : 'series'}_$index';
+        final itemId = '${isMovies ? 'movie' : 'series'}_${isMovies ? (item as MovieApiModel).id : (item as SeriesApiModel).id}';
         final isSelected = _selectedItems.contains(itemId);
         return _buildDownloadCard(
           item,
@@ -418,6 +463,11 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     String itemId,
     bool isSelected,
   ) {
+    // Conversion en modèle classique pour récupérer imagePath, title, etc.
+    final dynamic classicItem = isMovies 
+        ? (item as MovieApiModel).toMovieModel()
+        : (item as SeriesApiModel).toSeriesModel();
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -453,8 +503,8 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
               ),
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: Image.asset(
-                item.imagePath,
+              child: Image.network(
+                classicItem.imagePath,
                 width: 90,
                 height: 120,
                 fit: BoxFit.cover,
@@ -484,7 +534,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     MarqueeText(
-                      text: item.title,
+                      text: classicItem.title,
                       style: TextStyle(
                         color: AppColors.getTextColor(isDarkMode),
                         fontSize: 16,
@@ -511,7 +561,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      '${isMovies ? '1.2 GB' : '850 MB'} • Téléchargé le 15 nov.',
+                      '${isMovies ? '1.2 GB' : '850 MB'} • Téléchargé',
                       style: TextStyle(
                         color: AppColors.getTextSecondaryColor(isDarkMode),
                         fontSize: 12,
@@ -524,7 +574,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                           onPressed: () {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text('Lecture de ${item.title}'),
+                                content: Text('Lecture de ${classicItem.title}'),
                               ),
                             );
                           },
@@ -542,7 +592,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                         ),
                         const SizedBox(width: 8),
                         OutlinedButton.icon(
-                          onPressed: () => _deleteItem(itemId, item.title),
+                          onPressed: () => _deleteItem(isMovies, item),
                           icon: const Icon(Icons.delete_outline, size: 16),
                           label: const Text('Supprimer'),
                           style: OutlinedButton.styleFrom(
@@ -633,12 +683,18 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     if (isMovies) {
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (context) => MovieDetailScreen(movie: item)),
+        MaterialPageRoute(builder: (context) => MovieDetailScreen.fromApiMovie(item as MovieApiModel)),
+      );
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => SeriesDetailScreen.fromApiSeries(apiSeries: item as SeriesApiModel)),
       );
     }
   }
 
-  void _deleteItem(String itemId, String title) {
+  void _deleteItem(bool isMovie, dynamic item) {
+    final title = isMovie ? (item as MovieApiModel).title : (item as SeriesApiModel).title;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -652,8 +708,14 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
             child: const Text('Annuler'),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
+              if (isMovie) {
+                await DownloadService.removeDownloadedMovie((item as MovieApiModel).id);
+              } else {
+                await DownloadService.removeDownloadedSeries((item as SeriesApiModel).id);
+              }
+              _loadDownloads();
               ScaffoldMessenger.of(
                 context,
               ).showSnackBar(SnackBar(content: Text('$title supprimé')));
@@ -665,9 +727,10 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     );
   }
 
-  void _deleteSelectedItems() {
+  Future<void> _deleteSelectedItems() async {
     if (_selectedItems.isEmpty) return;
-    showDialog(
+    
+    final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Supprimer les téléchargements'),
@@ -676,29 +739,45 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, false),
             child: const Text('Annuler'),
           ),
           TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              setState(() {
-                _selectedItems.clear();
-                _isSelectionMode = false;
-              });
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Éléments supprimés')),
-              );
-            },
+            onPressed: () => Navigator.pop(context, true),
             child: const Text('Supprimer', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
     );
+
+    if (confirm == true) {
+      for (var itemId in _selectedItems) {
+        final parts = itemId.split('_');
+        final isMovie = parts[0] == 'movie';
+        final idStr = parts[1];
+        
+        if (isMovie) {
+          final id = int.tryParse(idStr);
+          if (id != null) await DownloadService.removeDownloadedMovie(id);
+        } else {
+          await DownloadService.removeDownloadedSeries(idStr);
+        }
+      }
+      
+      setState(() {
+        _selectedItems.clear();
+        _isSelectionMode = false;
+      });
+      _loadDownloads();
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Éléments supprimés')),
+      );
+    }
   }
 
-  void _showDeleteAllDialog() {
-    showDialog(
+  Future<void> _showDeleteAllDialog() async {
+    final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Supprimer tous les téléchargements'),
@@ -707,18 +786,11 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, false),
             child: const Text('Annuler'),
           ),
           TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Tous les téléchargements supprimés'),
-                ),
-              );
-            },
+            onPressed: () => Navigator.pop(context, true),
             child: const Text(
               'Supprimer tout',
               style: TextStyle(color: Colors.red),
@@ -727,6 +799,21 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
         ],
       ),
     );
+
+    if (confirm == true) {
+      for (var movie in _downloadedMovies) {
+        await DownloadService.removeDownloadedMovie(movie.id);
+      }
+      for (var series in _downloadedSeries) {
+        await DownloadService.removeDownloadedSeries(series.id);
+      }
+      _loadDownloads();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Tous les téléchargements supprimés'),
+        ),
+      );
+    }
   }
 
   void _showDownloadSettings() {

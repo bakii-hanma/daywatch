@@ -13,13 +13,13 @@ class FullscreenVideoPlayer extends StatefulWidget {
   final bool shouldAutoPlay;
 
   const FullscreenVideoPlayer({
-    Key? key,
+    super.key,
     required this.videoUrl,
     required this.title,
     this.subtitle = '',
     this.initialPosition,
     this.shouldAutoPlay = false,
-  }) : super(key: key);
+  });
 
   @override
   State<FullscreenVideoPlayer> createState() => _FullscreenVideoPlayerState();

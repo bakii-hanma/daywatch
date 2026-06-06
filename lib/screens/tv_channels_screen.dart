@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../design_system/colors.dart';
-import '../design_system/spacing.dart';
 import '../design_system/typography.dart';
 import '../widgets/common/genre_filter_bar.dart';
 import '../widgets/common/tv_channel_card.dart';
@@ -8,7 +7,7 @@ import '../models/tv_channel_model.dart';
 import '../services/tv_channel_service.dart';
 
 class TvChannelsScreen extends StatefulWidget {
-  const TvChannelsScreen({Key? key}) : super(key: key);
+  const TvChannelsScreen({super.key});
 
   @override
   State<TvChannelsScreen> createState() => _TvChannelsScreenState();

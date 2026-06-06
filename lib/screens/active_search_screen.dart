@@ -1,14 +1,11 @@
 import 'package:flutter/material.dart';
 import '../design_system/colors.dart';
-import '../design_system/spacing.dart';
-import '../design_system/typography.dart';
 import 'search_results_screen.dart';
 
 class ActiveSearchScreen extends StatefulWidget {
   final Function(String)? onSearchActivated;
 
-  const ActiveSearchScreen({Key? key, this.onSearchActivated})
-    : super(key: key);
+  const ActiveSearchScreen({super.key, this.onSearchActivated});
 
   @override
   State<ActiveSearchScreen> createState() => _ActiveSearchScreenState();

@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import '../design_system/colors.dart';
-import '../design_system/spacing.dart';
 import '../widgets/common/trailer_card.dart';
 import '../models/movie_model.dart';
 import '../services/trailer_service.dart';
 
 class TrailersScreen extends StatefulWidget {
-  const TrailersScreen({Key? key}) : super(key: key);
+  const TrailersScreen({super.key});
 
   @override
   State<TrailersScreen> createState() => _TrailersScreenState();
@@ -31,8 +30,6 @@ class _TrailersScreenState extends State<TrailersScreen> {
         _errorMessage = null;
       });
 
-      print('🎬 Chargement de tous les trailers...');
-
       // Charger tous les trailers (pas de limite)
       final trailers = await TrailerService.getRecentTrailers();
 
@@ -40,10 +37,7 @@ class _TrailersScreenState extends State<TrailersScreen> {
         _trailers = trailers;
         _isLoading = false;
       });
-
-      print('✅ ${_trailers.length} trailers chargés pour l\'écran Trailers');
     } catch (e) {
-      print('❌ Erreur lors du chargement des trailers: $e');
       setState(() {
         _isLoading = false;
         _errorMessage = 'Impossible de charger les bandes-annonces';
@@ -59,7 +53,6 @@ class _TrailersScreenState extends State<TrailersScreen> {
   void dispose() {
     // S'assurer que le wakelock est désactivé en quittant l'écran
     WakelockPlus.disable();
-    print('🔋 Wakelock désactivé - Sortie de l\'écran Trailers');
     super.dispose();
   }
 

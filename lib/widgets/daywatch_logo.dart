@@ -10,11 +10,11 @@ class DaywatchLogo extends StatelessWidget {
   final Color? customColor;
 
   const DaywatchLogo({
-    Key? key,
+    super.key,
     this.size = LogoSize.medium,
     required this.isDarkMode,
     this.customColor,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

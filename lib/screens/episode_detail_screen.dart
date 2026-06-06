@@ -13,10 +13,10 @@ class EpisodeDetailScreen extends StatefulWidget {
   final String seasonTitle;
 
   const EpisodeDetailScreen({
-    Key? key,
+    super.key,
     required this.episode,
     required this.seasonTitle,
-  }) : super(key: key);
+  });
 
   @override
   State<EpisodeDetailScreen> createState() => _EpisodeDetailScreenState();
@@ -69,7 +69,7 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen>
         Stack(
           children: [
             // Image de fond
-            Container(
+            SizedBox(
               height: 250,
               width: double.infinity,
               child: Image.network(widget.episode.imagePath, fit: BoxFit.cover),
@@ -292,7 +292,7 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen>
         ),
 
         // Tab Content
-        Container(
+        SizedBox(
           height: 600,
           child: TabBarView(
             controller: _tabController,

@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
+import '../services/favorite_service.dart';
+import '../services/download_service.dart';
+import '../services/user_storage_service.dart';
+import '../services/watch_history_service.dart';
+import '../services/movie_service.dart';
 import 'package:chewie/chewie.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -21,22 +26,19 @@ class MovieDetailScreen extends StatefulWidget {
   final MovieModel? movie;
   final MovieApiModel? apiMovie;
 
-  const MovieDetailScreen({Key? key, this.movie, this.apiMovie})
+  const MovieDetailScreen({super.key, this.movie, this.apiMovie})
     : assert(
         movie != null || apiMovie != null,
         'Either movie or apiMovie must be provided',
-      ),
-      super(key: key);
+      );
 
   // Constructor pour les films classiques
-  const MovieDetailScreen.fromMovie(this.movie, {Key? key})
-    : apiMovie = null,
-      super(key: key);
+  const MovieDetailScreen.fromMovie(this.movie, {super.key})
+    : apiMovie = null;
 
   // Constructor pour les films de l'API
-  const MovieDetailScreen.fromApiMovie(this.apiMovie, {Key? key})
-    : movie = null,
-      super(key: key);
+  const MovieDetailScreen.fromApiMovie(this.apiMovie, {super.key})
+    : movie = null;
 
   @override
   State<MovieDetailScreen> createState() => _MovieDetailScreenState();
@@ -45,6 +47,11 @@ class MovieDetailScreen extends StatefulWidget {
 class _MovieDetailScreenState extends State<MovieDetailScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  bool _isFavorite = false;
+  bool _isDownloaded = false;
+  bool _canDownload = false;
+  String? _userId;
+  DateTime? _lastSaveTime;
   bool _isPlayerVisible = false; // État pour contrôler l'affichage du lecteur
   VideoPlayerController? _videoPlayerController;
   ChewieController? _chewieController;
@@ -61,24 +68,30 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
   VideoController? _mediaKitController;
   bool _isUsingMediaKit = false;
 
+  // État pour le chargement des détails complets de l'API
+  MovieApiModel? _loadedApiMovie;
+  bool _isLoadingDetails = false;
+
   // Getters pour unifier l'accès aux données
-  String get title => widget.apiMovie?.title ?? widget.movie?.title ?? '';
+  MovieApiModel? get currentApiMovie => _loadedApiMovie ?? widget.apiMovie;
+
+  String get title => currentApiMovie?.title ?? widget.movie?.title ?? '';
   String get overview =>
-      widget.apiMovie?.overview ?? widget.movie?.description ?? '';
+      currentApiMovie?.overview ?? widget.movie?.description ?? '';
   String get posterPath =>
-      widget.apiMovie?.images.poster ?? widget.movie?.imagePath ?? '';
+      currentApiMovie?.images.poster ?? widget.movie?.imagePath ?? '';
   String get backdropPath =>
-      widget.apiMovie?.images.backdrop ?? widget.movie?.imagePath ?? '';
-  double get rating => widget.apiMovie?.rating ?? widget.movie?.rating ?? 0.0;
+      currentApiMovie?.images.backdrop ?? widget.movie?.imagePath ?? '';
+  double get rating => currentApiMovie?.rating ?? widget.movie?.rating ?? 0.0;
   String get year =>
-      widget.apiMovie?.year.toString() ?? widget.movie?.releaseDate ?? '';
-  String get duration => widget.apiMovie != null
-      ? '${widget.apiMovie!.runtime}min'
+      currentApiMovie?.year.toString() ?? widget.movie?.releaseDate ?? '';
+  String get duration => currentApiMovie != null
+      ? '${currentApiMovie!.runtime}min'
       : (widget.movie?.duration ?? '');
   List<String> get genres =>
-      widget.apiMovie?.genres ?? [widget.movie?.genre ?? ''];
-  String get certification => widget.apiMovie?.certification ?? 'PG-13';
-  bool get isApiMovie => widget.apiMovie != null;
+      currentApiMovie?.genres ?? [widget.movie?.genre ?? ''];
+  String get certification => currentApiMovie?.certification ?? 'PG-13';
+  bool get isApiMovie => currentApiMovie != null;
 
   @override
   void initState() {
@@ -89,6 +102,84 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
         // Rebuilder à chaque changement d'onglet
       });
     });
+    _loadMovieDetails();
+    _initLibraryState();
+  }
+
+  Future<void> _loadMovieDetails() async {
+    if (widget.apiMovie == null) return;
+
+    setState(() {
+      _isLoadingDetails = true;
+    });
+
+    try {
+      final completeMovie = await MovieService.getMovieByTmdbId(widget.apiMovie!.tmdbId);
+      if (completeMovie != null && mounted) {
+        setState(() {
+          _loadedApiMovie = completeMovie;
+          _isLoadingDetails = false;
+        });
+        // Rafraîchir l'état de la bibliothèque avec le film complet
+        _initLibraryState();
+      } else {
+        if (mounted) {
+          setState(() {
+            _isLoadingDetails = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingDetails = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _initLibraryState() async {
+    final userData = await UserStorageService.getUserData();
+    if (userData != null && mounted) {
+      _userId = userData['userId']?.toString();
+      final targetMovie = currentApiMovie;
+      if (_userId != null && targetMovie != null) {
+        final favorites = await FavoriteService.getFavoriteMovies(_userId!);
+        final isFav = favorites.any((m) => m.id == targetMovie.id);
+        final isDown = await DownloadService.isMovieDownloaded(targetMovie.id);
+        final canDown = await DownloadService.canDownload();
+        if (mounted) {
+          setState(() {
+            _isFavorite = isFav;
+            _isDownloaded = isDown;
+            _canDownload = canDown;
+          });
+        }
+      }
+    }
+  }
+
+  void _videoPlayerListener() {
+    final targetMovie = currentApiMovie;
+    if (_videoPlayerController == null || _userId == null || targetMovie == null) return;
+    
+    final position = _videoPlayerController!.value.position.inSeconds;
+    final duration = _videoPlayerController!.value.duration.inSeconds;
+    
+    if (position > 0 && duration > 0) {
+      final isCompleted = position >= duration - 10;
+      final now = DateTime.now();
+      if (_lastSaveTime == null || now.difference(_lastSaveTime!).inSeconds >= 10 || isCompleted) {
+        _lastSaveTime = now;
+        WatchHistoryService.saveMovieWatchHistory(
+          userId: _userId!,
+          movieId: targetMovie.id,
+          lastWatchedPosition: position,
+          lastWatchedDate: now.toIso8601String(),
+          isCompleted: isCompleted,
+        );
+      }
+    }
   }
 
   @override
@@ -101,6 +192,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
 
     _tabController.dispose();
     _chewieController?.dispose();
+    _videoPlayerController?.removeListener(_videoPlayerListener);
     _videoPlayerController?.dispose();
     _youtubeController?.dispose();
 
@@ -156,7 +248,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
                     constraints: BoxConstraints(minHeight: 200, maxHeight: 300),
                     child: _buildBackdropPlayer(isDarkMode),
                   )
-                : Container(
+                : SizedBox(
                     width: double.infinity,
                     height:
                         220, // Hauteur fixe réduite pour les images statiques
@@ -300,10 +392,10 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
                       ),
                     ),
 
-                    if (isApiMovie && widget.apiMovie!.studio != null) ...[
+                    if (isApiMovie && currentApiMovie!.studio != null) ...[
                       const SizedBox(height: 8),
                       Text(
-                        'Studio: ${widget.apiMovie!.studio}',
+                        'Studio: ${currentApiMovie!.studio}',
                         style: TextStyle(
                           color: AppColors.getTextSecondaryColor(isDarkMode),
                           fontSize: 12,
@@ -313,7 +405,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
                     ],
 
                     // Statut de disponibilité pour les films API
-                    if (isApiMovie && !widget.apiMovie!.downloaded) ...[
+                    if (isApiMovie && !currentApiMovie!.downloaded) ...[
                       const SizedBox(height: 8),
                       Row(
                         children: [
@@ -361,7 +453,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
   String _getAvailabilityText() {
     if (!isApiMovie) return 'Bientôt disponible';
 
-    final releaseInfo = widget.apiMovie!.releaseInfo;
+    final releaseInfo = currentApiMovie!.releaseInfo;
     final now = DateTime.now();
 
     // Vérifier si le film est déjà sorti en salles
@@ -495,37 +587,126 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _buildActionButton(Icons.share, 'Partager', isDarkMode),
-          _buildActionButton(Icons.bookmark_border, 'Ma liste', isDarkMode),
-          // Suppression du bouton télécharger/téléchargé
+          _buildActionButton(
+            icon: Icons.share, 
+            label: 'Partager', 
+            isDarkMode: isDarkMode,
+            onTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Lien de partage copié !')),
+              );
+            },
+          ),
+          _buildActionButton(
+            icon: _isFavorite ? Icons.bookmark : Icons.bookmark_border, 
+            label: 'Ma liste', 
+            isDarkMode: isDarkMode,
+            color: _isFavorite ? AppColors.primary : null,
+            onTap: () async {
+              print('❤️ [MovieDetailScreen] Clic sur "Ma liste"');
+              final targetMovie = currentApiMovie;
+              print('❤️ [MovieDetailScreen] _userId: $_userId, targetMovie ID: ${targetMovie?.id}, Title: ${targetMovie?.title}, isFavorite actuel: $_isFavorite');
+              if (_userId == null || targetMovie == null) {
+                print('⚠️ [MovieDetailScreen] Clic ignoré car _userId ou targetMovie est nul');
+                return;
+              }
+              
+              if (_isFavorite) {
+                print('❤️ [MovieDetailScreen] Retrait du film ${targetMovie.id} des favoris...');
+                final success = await FavoriteService.removeMovieFromFavorites(_userId!, targetMovie.id);
+                print('❤️ [MovieDetailScreen] Résultat retrait favoris: $success');
+                if (success) {
+                  setState(() => _isFavorite = false);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Retiré de vos favoris')),
+                  );
+                }
+              } else {
+                print('❤️ [MovieDetailScreen] Ajout du film ${targetMovie.id} aux favoris...');
+                final success = await FavoriteService.addMovieToFavorites(_userId!, targetMovie.id);
+                print('❤️ [MovieDetailScreen] Résultat ajout favoris: $success');
+                if (success) {
+                  setState(() => _isFavorite = true);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Ajouté à vos favoris')),
+                  );
+                }
+              }
+            },
+          ),
+          if (_canDownload && currentApiMovie != null)
+            _buildActionButton(
+              icon: _isDownloaded ? Icons.download_done : Icons.download, 
+              label: _isDownloaded ? 'Téléchargé' : 'Télécharger', 
+              isDarkMode: isDarkMode,
+              color: _isDownloaded ? Colors.green : null,
+              onTap: () async {
+                final targetMovie = currentApiMovie;
+                if (targetMovie == null) return;
+
+                if (_isDownloaded) {
+                  final success = await DownloadService.removeDownloadedMovie(targetMovie.id);
+                  if (success) {
+                    setState(() => _isDownloaded = false);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Téléchargement supprimé')),
+                    );
+                  }
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Téléchargement en cours...')),
+                  );
+                  final success = await DownloadService.downloadMovie(targetMovie);
+                  if (success) {
+                    setState(() => _isDownloaded = true);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Téléchargé avec succès !')),
+                    );
+                  }
+                }
+              },
+            ),
         ],
       ),
     );
   }
 
-  Widget _buildActionButton(IconData icon, String label, bool isDarkMode) {
-    return Column(
-      children: [
-        Icon(
-          icon,
-          color: AppColors.getTextSecondaryColor(isDarkMode),
-          size: 24,
+  Widget _buildActionButton({
+    required IconData icon, 
+    required String label, 
+    required bool isDarkMode,
+    required VoidCallback onTap,
+    Color? color,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              color: color ?? AppColors.getTextSecondaryColor(isDarkMode),
+              size: 24,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: color ?? AppColors.getTextSecondaryColor(isDarkMode),
+                fontSize: 12,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: TextStyle(
-            color: AppColors.getTextSecondaryColor(isDarkMode),
-            fontSize: 12,
-          ),
-        ),
-      ],
+      ),
     );
   }
 
   Widget _buildWatchNowButton(bool isDarkMode) {
     // Ne pas afficher le bouton "Regarder maintenant" si le film n'est pas disponible
-    if (isApiMovie && !widget.apiMovie!.downloaded) {
+    if (isApiMovie && !currentApiMovie!.downloaded) {
       return const SizedBox.shrink();
     }
 
@@ -741,8 +922,8 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
     // Vérifier s'il y a une bande-annonce disponible
     final hasTrailer =
         isApiMovie &&
-        widget.apiMovie!.youTubeTrailerId != null &&
-        widget.apiMovie!.youTubeTrailerId!.isNotEmpty;
+        currentApiMovie!.youTubeTrailerId != null &&
+        currentApiMovie!.youTubeTrailerId!.isNotEmpty;
 
     if (!hasTrailer) return const SizedBox.shrink();
 
@@ -787,13 +968,14 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
     print('🎬 _launchFullscreenPlayer appelé');
     print('📺 isApiMovie: $isApiMovie');
 
-    if (isApiMovie) {
+    final targetMovie = currentApiMovie;
+    if (isApiMovie && targetMovie != null) {
       print('📁 API Movie détecté');
-      print('🔗 mediaInfo.fullPath: ${widget.apiMovie!.mediaInfo.fullPath}');
+      print('🔗 mediaInfo.fullPath: ${targetMovie.mediaInfo.fullPath}');
 
-      if (widget.apiMovie!.mediaInfo.fullPath != null) {
+      if (targetMovie.mediaInfo.fullPath != null) {
         // Construire l'URL complète avec le préfixe du serveur
-        final fullPath = widget.apiMovie!.mediaInfo.fullPath!;
+        final fullPath = targetMovie.mediaInfo.fullPath!;
         final videoUrl = ServerConfig.getStreamingUrl(fullPath);
 
         print('🎬 Lancement du lecteur avec URL: $videoUrl');
@@ -889,6 +1071,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
         .timeout(const Duration(seconds: 30))
         .then((_) {
           print('✅ VideoPlayer initialisé avec succès');
+          _videoPlayerController!.addListener(_videoPlayerListener);
 
           // Créer le contrôleur Chewie après l'initialisation de VideoPlayer
           _chewieController = ChewieController(
@@ -1042,8 +1225,12 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
 
       // Nettoyer les contrôleurs précédents
       _chewieController?.dispose();
+      _chewieController = null;
+      _videoPlayerController?.removeListener(_videoPlayerListener);
       _videoPlayerController?.dispose();
+      _videoPlayerController = null;
       _mediaKitPlayer?.dispose();
+      _mediaKitPlayer = null;
 
       // Créer un nouveau player MediaKit
       _mediaKitPlayer = Player();
@@ -1179,15 +1366,21 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
                   // Bouton reculer 10s
                   InkWell(
                     onTap: () {
-                      final currentPosition =
-                          _videoPlayerController!.value.position;
-                      final newPosition =
-                          currentPosition - const Duration(seconds: 10);
-                      _videoPlayerController!.seekTo(
-                        newPosition < Duration.zero
-                            ? Duration.zero
-                            : newPosition,
-                      );
+                      if (_isUsingMediaKit && _mediaKitPlayer != null) {
+                        final currentPosition = _mediaKitPlayer!.state.position;
+                        final newPosition = currentPosition - const Duration(seconds: 10);
+                        _mediaKitPlayer!.seek(newPosition < Duration.zero ? Duration.zero : newPosition);
+                      } else if (_videoPlayerController != null) {
+                        final currentPosition =
+                            _videoPlayerController!.value.position;
+                        final newPosition =
+                            currentPosition - const Duration(seconds: 10);
+                        _videoPlayerController!.seekTo(
+                          newPosition < Duration.zero
+                              ? Duration.zero
+                              : newPosition,
+                        );
+                      }
                     },
                     child: Container(
                       padding: const EdgeInsets.all(12),
@@ -1206,46 +1399,82 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
                   const SizedBox(width: 16),
 
                   // Bouton play/pause personnalisé avec mise à jour en temps réel
-                  ValueListenableBuilder<VideoPlayerValue>(
-                    valueListenable: _videoPlayerController!,
-                    builder: (context, value, child) {
-                      return InkWell(
-                        onTap: () {
-                          if (value.isPlaying) {
-                            _videoPlayerController!.pause();
-                          } else {
-                            _videoPlayerController!.play();
-                          }
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: isDarkMode ? Colors.red : Colors.white,
-                            borderRadius: BorderRadius.circular(25),
-                          ),
-                          child: Icon(
-                            value.isPlaying ? Icons.pause : Icons.play_arrow,
-                            color: isDarkMode ? Colors.white : Colors.red,
-                            size: 36,
-                          ),
+                  _isUsingMediaKit && _mediaKitPlayer != null
+                      ? StreamBuilder<bool>(
+                          stream: _mediaKitPlayer!.stream.playing,
+                          initialData: _mediaKitPlayer!.state.playing,
+                          builder: (context, snapshot) {
+                            final isPlaying = snapshot.data ?? false;
+                            return InkWell(
+                              onTap: () {
+                                if (isPlaying) {
+                                  _mediaKitPlayer!.pause();
+                                } else {
+                                  _mediaKitPlayer!.play();
+                                }
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: isDarkMode ? Colors.red : Colors.white,
+                                  borderRadius: BorderRadius.circular(25),
+                                ),
+                                child: Icon(
+                                  isPlaying ? Icons.pause : Icons.play_arrow,
+                                  color: isDarkMode ? Colors.white : Colors.red,
+                                  size: 36,
+                                ),
+                              ),
+                            );
+                          },
+                        )
+                      : ValueListenableBuilder<VideoPlayerValue>(
+                          valueListenable: _videoPlayerController!,
+                          builder: (context, value, child) {
+                            return InkWell(
+                              onTap: () {
+                                if (value.isPlaying) {
+                                  _videoPlayerController!.pause();
+                                } else {
+                                  _videoPlayerController!.play();
+                                }
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: isDarkMode ? Colors.red : Colors.white,
+                                  borderRadius: BorderRadius.circular(25),
+                                ),
+                                child: Icon(
+                                  value.isPlaying ? Icons.pause : Icons.play_arrow,
+                                  color: isDarkMode ? Colors.white : Colors.red,
+                                  size: 36,
+                                ),
+                              ),
+                            );
+                          },
                         ),
-                      );
-                    },
-                  ),
 
                   const SizedBox(width: 16),
 
                   // Bouton avancer 10s
                   InkWell(
                     onTap: () {
-                      final currentPosition =
-                          _videoPlayerController!.value.position;
-                      final duration = _videoPlayerController!.value.duration;
-                      final newPosition =
-                          currentPosition + const Duration(seconds: 10);
-                      _videoPlayerController!.seekTo(
-                        newPosition > duration ? duration : newPosition,
-                      );
+                      if (_isUsingMediaKit && _mediaKitPlayer != null) {
+                        final currentPosition = _mediaKitPlayer!.state.position;
+                        final duration = _mediaKitPlayer!.state.duration;
+                        final newPosition = currentPosition + const Duration(seconds: 10);
+                        _mediaKitPlayer!.seek(newPosition > duration ? duration : newPosition);
+                      } else if (_videoPlayerController != null) {
+                        final currentPosition =
+                            _videoPlayerController!.value.position;
+                        final duration = _videoPlayerController!.value.duration;
+                        final newPosition =
+                            currentPosition + const Duration(seconds: 10);
+                        _videoPlayerController!.seekTo(
+                          newPosition > duration ? duration : newPosition,
+                        );
+                      }
                     },
                     child: Container(
                       padding: const EdgeInsets.all(12),
@@ -1282,8 +1511,9 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
   }
 
   void _launchTrailer() {
-    if (isApiMovie && widget.apiMovie!.youTubeTrailerId != null) {
-      final videoId = widget.apiMovie!.youTubeTrailerId!;
+    final targetMovie = currentApiMovie;
+    if (isApiMovie && targetMovie != null && targetMovie.youTubeTrailerId != null) {
+      final videoId = targetMovie.youTubeTrailerId!;
 
       print('🎬 Lancement de la bande-annonce YouTube: $videoId');
 
@@ -1339,8 +1569,9 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
   }
 
   void _openFullscreenPlayer() {
-    if (isApiMovie && widget.apiMovie!.mediaInfo.fullPath != null) {
-      final fullPath = widget.apiMovie!.mediaInfo.fullPath!;
+    final targetMovie = currentApiMovie;
+    if (isApiMovie && targetMovie != null && targetMovie.mediaInfo.fullPath != null) {
+      final fullPath = targetMovie.mediaInfo.fullPath!;
       final videoUrl = ServerConfig.getStreamingUrl(fullPath);
 
       // Récupérer la position actuelle si le lecteur est actif
@@ -1375,7 +1606,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
             videoUrl: videoUrl,
             title: title,
             subtitle: isApiMovie
-                ? '${year} • ${_formatDuration(Duration(minutes: widget.apiMovie!.runtime))}'
+                ? '$year • ${_formatDuration(Duration(minutes: targetMovie.runtime))}'
                 : '',
             initialPosition: currentPosition,
             shouldAutoPlay: wasPlaying,
@@ -1468,16 +1699,26 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    overview.isNotEmpty
-                        ? overview
-                        : 'Aucun synopsis disponible.',
-                    style: TextStyle(
-                      color: AppColors.getTextSecondaryColor(isDarkMode),
-                      fontSize: 14,
-                      height: 1.5,
-                    ),
-                  ),
+                  _isLoadingDetails
+                      ? const Center(
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(vertical: 20),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.red,
+                            ),
+                          ),
+                        )
+                      : Text(
+                          overview.isNotEmpty
+                              ? overview
+                              : 'Aucun synopsis disponible.',
+                          style: TextStyle(
+                            color: AppColors.getTextSecondaryColor(isDarkMode),
+                            fontSize: 14,
+                            height: 1.5,
+                          ),
+                        ),
                 ],
               ),
             ),
@@ -1490,13 +1731,23 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
             const SizedBox(height: 16),
 
             // Section Galerie
-            if (isApiMovie && widget.apiMovie!.gallery != null)
+            if (_isLoadingDetails)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 20),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.red,
+                  ),
+                ),
+              )
+            else if (isApiMovie && currentApiMovie!.gallery != null)
               _buildApiGallery(isDarkMode)
             else
               _buildClassicGallery(isDarkMode),
 
             // Bande-annonce YouTube
-            if (isApiMovie && widget.apiMovie!.youTubeTrailerId != null)
+            if (isApiMovie && !_isLoadingDetails && currentApiMovie!.youTubeTrailerId != null)
               _buildTrailerSection(isDarkMode),
 
             // Espacement en bas pour surélever le contenu
@@ -1504,14 +1755,14 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
           ],
         );
       case 1: // Commentaires
-        return Container(
+        return SizedBox(
           height: 600, // Hauteur fixe pour les commentaires
           child: _buildCommentsTab(isDarkMode),
         );
       case 2: // Similaires
         return Column(
           children: [
-            Container(
+            SizedBox(
               height: 800, // Hauteur fixe pour les films similaires
               child: _buildSimilarTab(isDarkMode),
             ),
@@ -1525,11 +1776,24 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
   }
 
   Widget _buildCastingSection(bool isDarkMode) {
-    List<ActorModel> actors = [];
+    if (_isLoadingDetails) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 20),
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: Colors.red,
+          ),
+        ),
+      );
+    }
 
-    if (isApiMovie && widget.apiMovie!.cast != null) {
+    List<ActorModel> actors = [];
+    final targetMovie = currentApiMovie;
+
+    if (isApiMovie && targetMovie != null && targetMovie.cast != null) {
       // Convertir CastMember vers ActorModel pour utiliser HorizontalSection
-      actors = widget.apiMovie!.cast!.cast.map((castMember) {
+      actors = targetMovie.cast!.cast.map((castMember) {
         // Construire l'URL complète pour l'image TMDB
         String imageUrl = '';
         if (castMember.profilePath != null &&
@@ -1607,7 +1871,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
   }
 
   Widget _buildSimilarTab(bool isDarkMode) {
-    if (isApiMovie && widget.apiMovie!.similarMovies.isNotEmpty) {
+    if (isApiMovie && currentApiMovie!.similarMovies.isNotEmpty) {
       return _buildApiSimilarMovies(isDarkMode);
     }
 
@@ -1728,7 +1992,8 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
   }
 
   Widget _buildApiSimilarMovies(bool isDarkMode) {
-    final similarMovies = widget.apiMovie!.similarMovies;
+    final targetMovie = currentApiMovie;
+    final similarMovies = targetMovie != null ? targetMovie.similarMovies : const <SimilarMovie>[];
 
     return SingleChildScrollView(
       child: Padding(
@@ -1855,10 +2120,13 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
 
   // Autres méthodes manquantes...
   Widget _buildApiGallery(bool isDarkMode) {
-    final gallery = widget.apiMovie!.gallery!;
+    final targetMovie = currentApiMovie;
+    if (targetMovie == null || targetMovie.gallery == null) return const SizedBox.shrink();
+
+    final gallery = targetMovie.gallery!;
     final hasTrailer =
-        widget.apiMovie!.youTubeTrailerId != null &&
-        widget.apiMovie!.youTubeTrailerId!.isNotEmpty;
+        targetMovie.youTubeTrailerId != null &&
+        targetMovie.youTubeTrailerId!.isNotEmpty;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1903,7 +2171,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
                     ClipRRect(
                       borderRadius: BorderRadius.circular(8),
                       child: Image.network(
-                        'https://img.youtube.com/vi/${widget.apiMovie!.youTubeTrailerId}/maxresdefault.jpg',
+                        'https://img.youtube.com/vi/${targetMovie.youTubeTrailerId}/maxresdefault.jpg',
                         width: 200,
                         height: 120,
                         fit: BoxFit.cover,
@@ -2078,10 +2346,12 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
   }
 
   Widget _buildClassicGallery(bool isDarkMode) {
+    final targetMovie = currentApiMovie;
     final hasTrailer =
         isApiMovie &&
-        widget.apiMovie!.youTubeTrailerId != null &&
-        widget.apiMovie!.youTubeTrailerId!.isNotEmpty;
+        targetMovie != null &&
+        targetMovie.youTubeTrailerId != null &&
+        targetMovie.youTubeTrailerId!.isNotEmpty;
 
     final trailerImages = [
       'assets/poster/304002ec328ad17a89f9c1df6cf8c782947ff218.jpg',
@@ -2139,7 +2409,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
                     ClipRRect(
                       borderRadius: BorderRadius.circular(8),
                       child: Image.network(
-                        'https://img.youtube.com/vi/${widget.apiMovie!.youTubeTrailerId}/maxresdefault.jpg',
+                        'https://img.youtube.com/vi/${targetMovie.youTubeTrailerId}/maxresdefault.jpg',
                         width: 200,
                         height: 120,
                         fit: BoxFit.cover,
@@ -2325,17 +2595,20 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
             ),
             child: InkWell(
               onTap: () {
-                // Ouvrir YouTube avec l'ID de la bande-annonce
-                print(
-                  '🎬 Ouverture YouTube: ${widget.apiMovie!.youTubeTrailerId}',
-                );
+                final targetMovie = currentApiMovie;
+                if (targetMovie != null && targetMovie.youTubeTrailerId != null) {
+                  // Ouvrir YouTube avec l'ID de la bande-annonce
+                  print(
+                    '🎬 Ouverture YouTube: ${targetMovie.youTubeTrailerId}',
+                  );
+                }
               },
               child: Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(8),
                   image: DecorationImage(
                     image: NetworkImage(
-                      'https://img.youtube.com/vi/${widget.apiMovie!.youTubeTrailerId}/maxresdefault.jpg',
+                      'https://img.youtube.com/vi/${currentApiMovie?.youTubeTrailerId}/maxresdefault.jpg',
                     ),
                     fit: BoxFit.cover,
                   ),

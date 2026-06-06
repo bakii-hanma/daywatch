@@ -106,6 +106,10 @@ Le projet utilise un système de design cohérent avec :
 - **Espacements** : Grille de base 8px
 - **Composants** : Widgets réutilisables et modulaires
 
+## 📋 Directives de développement (Règles de Code)
+
+- **Notifications et Alertes** : Toutes les notifications, messages d'information, de succès ou d'erreur destinés à l'utilisateur DOIVENT passer par la méthode `AlertUtils.showAlert` (ou ses spécialisations `AlertUtils.showSuccess` / `AlertUtils.showError`). Sous le capot, celle-ci utilise le composant customisé `CustomToast` pour afficher des notifications élégantes en haut de l'écran. Il est interdit d'utiliser directement `ScaffoldMessenger.of(context).showSnackBar` avec des messages bruts non nettoyés.
+
 ## 📄 Licence
 
 Ce projet est sous licence MIT. Voir le fichier [LICENSE](LICENSE) pour plus de détails.

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../design_system/colors.dart';
 
 class ImageGalleryViewer extends StatefulWidget {
   final List<String> imageUrls;
@@ -8,11 +7,11 @@ class ImageGalleryViewer extends StatefulWidget {
   final List<String> imageNames;
 
   const ImageGalleryViewer({
-    Key? key,
+    super.key,
     required this.imageUrls,
     required this.initialIndex,
     this.imageNames = const [],
-  }) : super(key: key);
+  });
 
   @override
   State<ImageGalleryViewer> createState() => _ImageGalleryViewerState();

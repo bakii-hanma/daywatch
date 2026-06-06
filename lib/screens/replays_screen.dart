@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import '../design_system/colors.dart';
-import '../design_system/spacing.dart';
 import '../design_system/typography.dart';
 import '../widgets/common/genre_filter_bar.dart';
 import '../widgets/common/replay_card.dart';
 
 class ReplaysScreen extends StatefulWidget {
-  const ReplaysScreen({Key? key}) : super(key: key);
+  const ReplaysScreen({super.key});
 
   @override
   State<ReplaysScreen> createState() => _ReplaysScreenState();

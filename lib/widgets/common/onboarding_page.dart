@@ -21,11 +21,11 @@ class OnboardingPage extends StatelessWidget {
   final bool isDarkMode;
 
   const OnboardingPage({
-    Key? key,
+    super.key,
     required this.data,
     required this.pageNumber,
     required this.isDarkMode,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

@@ -12,13 +12,13 @@ class SearchHeader extends StatelessWidget {
   final Function(String)? onSearchActivated;
 
   const SearchHeader({
-    Key? key,
+    super.key,
     required this.searchController,
     this.hintText = 'Entrez votre recherche',
     required this.isDarkMode,
     this.onSearchChanged,
     this.onSearchActivated,
-  }) : super(key: key);
+  });
 
   void _navigateToActiveSearch(BuildContext context) {
     Navigator.of(context).push(

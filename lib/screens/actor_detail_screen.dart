@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
 import '../design_system/colors.dart';
-import '../design_system/spacing.dart';
-import '../design_system/typography.dart';
 import '../widgets/common/movies_grid.dart';
 import '../widgets/common/series_grid.dart';
 import '../models/movie_model.dart';
-import '../models/series_model.dart';
 import '../services/actor_service.dart';
 
 class ActorDetailScreen extends StatefulWidget {
@@ -13,10 +10,10 @@ class ActorDetailScreen extends StatefulWidget {
   final String actorName;
 
   const ActorDetailScreen({
-    Key? key,
+    super.key,
     required this.actorId,
     required this.actorName,
-  }) : super(key: key);
+  });
 
   @override
   State<ActorDetailScreen> createState() => _ActorDetailScreenState();

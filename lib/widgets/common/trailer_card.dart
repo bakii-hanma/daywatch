@@ -15,14 +15,14 @@ class TrailerCard extends StatefulWidget {
   final String? trailerUrl;
 
   const TrailerCard({
-    Key? key,
+    super.key,
     required this.imagePath,
     required this.title,
     required this.duration,
     required this.isDarkMode,
     this.onPlayTap,
     this.trailerUrl,
-  }) : super(key: key);
+  });
 
   @override
   State<TrailerCard> createState() => _TrailerCardState();
@@ -69,7 +69,6 @@ class _TrailerCardState extends State<TrailerCard> {
           _isPlaying = false;
           // Désactiver le wakelock
           WakelockPlus.disable();
-          print('🔋 Wakelock désactivé - Trailer en pause: ${widget.title}');
         } else {
           if (!_showPlayer) {
             _showPlayer = true;
@@ -78,7 +77,6 @@ class _TrailerCardState extends State<TrailerCard> {
           _isPlaying = true;
           // Activer le wakelock pour empêcher la mise en veille
           WakelockPlus.enable();
-          print('🔋 Wakelock activé - Trailer en lecture: ${widget.title}');
         }
       });
     } else if (widget.onPlayTap != null) {
@@ -109,7 +107,6 @@ class _TrailerCardState extends State<TrailerCard> {
       }
       // Désactiver le wakelock
       WakelockPlus.disable();
-      print('🔋 Wakelock désactivé - Trailer fermé: ${widget.title}');
     });
   }
 
@@ -118,7 +115,6 @@ class _TrailerCardState extends State<TrailerCard> {
     // S'assurer que le wakelock est désactivé en quittant le widget
     if (_isPlaying) {
       WakelockPlus.disable();
-      print('🔋 Wakelock désactivé - Dispose TrailerCard: ${widget.title}');
     }
     _controller?.dispose();
     super.dispose();
@@ -156,18 +152,13 @@ class _TrailerCardState extends State<TrailerCard> {
                             playedColor: AppColors.primary,
                             handleColor: AppColors.primary,
                           ),
-                          onReady: () {
-                            print('🎬 Lecteur YouTube prêt: ${widget.title}');
-                          },
+                          onReady: () {},
                           onEnded: (metaData) {
                             setState(() {
                               _isPlaying = false;
                             });
                             // Désactiver le wakelock quand la vidéo se termine
                             WakelockPlus.disable();
-                            print(
-                              '🔋 Wakelock désactivé - Trailer terminé: ${widget.title}',
-                            );
                           },
                         )
                       : Stack(
@@ -356,12 +347,13 @@ class _TrailerCardState extends State<TrailerCard> {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            Text(
-              widget.duration,
-              style: AppTypography.body(
-                AppColors.getTextSecondaryColor(widget.isDarkMode),
+            if (widget.duration.isNotEmpty)
+              Text(
+                widget.duration,
+                style: AppTypography.body(
+                  AppColors.getTextSecondaryColor(widget.isDarkMode),
+                ),
               ),
-            ),
           ],
         ),
       ],

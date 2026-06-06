@@ -18,12 +18,12 @@ class GenreGrid extends StatelessWidget {
   final VoidCallback? onSeeAllTap;
 
   const GenreGrid({
-    Key? key,
+    super.key,
     required this.genres,
     required this.isDarkMode,
     this.title = 'Genres',
     this.onSeeAllTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

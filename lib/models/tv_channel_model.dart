@@ -20,12 +20,14 @@ class TvChannelModel {
   });
 
   factory TvChannelModel.fromJson(Map<String, dynamic> json) {
-    // Gérer les catégories (peut être une liste)
+    // Gérer les catégories (peut être une liste ou une chaîne simple)
     String categoryStr = 'Généraliste';
     if (json['categories'] != null &&
         json['categories'] is List &&
         (json['categories'] as List).isNotEmpty) {
       categoryStr = (json['categories'] as List).first.toString();
+    } else if (json['category'] != null) {
+      categoryStr = json['category'].toString();
     }
 
     return TvChannelModel(

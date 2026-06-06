@@ -8,12 +8,12 @@ class ProfileOptionItem extends StatelessWidget {
   final VoidCallback? onTap;
 
   const ProfileOptionItem({
-    Key? key,
+    super.key,
     required this.icon,
     required this.title,
     this.trailing,
     this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

@@ -13,7 +13,7 @@ class HorizontalSection<T> extends StatelessWidget {
   final bool isDarkMode;
 
   const HorizontalSection({
-    Key? key,
+    super.key,
     required this.title,
     required this.items,
     required this.itemBuilder,
@@ -22,7 +22,7 @@ class HorizontalSection<T> extends StatelessWidget {
     this.showSeeMore = true,
     this.onSeeMoreTap,
     required this.isDarkMode,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

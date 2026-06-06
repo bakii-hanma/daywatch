@@ -1,10 +1,6 @@
 import 'package:flutter/material.dart';
-import 'dart:math';
 import 'dart:ui';
 import '../design_system/colors.dart';
-import '../design_system/spacing.dart';
-import '../design_system/typography.dart';
-import '../widgets/daywatch_logo.dart';
 import 'login_screen.dart';
 import 'register_screen.dart';
 

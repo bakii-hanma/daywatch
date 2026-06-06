@@ -4,15 +4,13 @@ import 'package:chewie/chewie.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
-import '../design_system/colors.dart';
 import '../models/series_model.dart';
 import '../config/server_config.dart';
 
 class EpisodePlayerScreen extends StatefulWidget {
   final EpisodeApiModel episode;
 
-  const EpisodePlayerScreen({Key? key, required this.episode})
-    : super(key: key);
+  const EpisodePlayerScreen({super.key, required this.episode});
 
   @override
   State<EpisodePlayerScreen> createState() => _EpisodePlayerScreenState();
@@ -53,7 +51,7 @@ class _EpisodePlayerScreenState extends State<EpisodePlayerScreen> {
     final videoPath = fileInfo.fullPath;
     print('📂 Utilisation du chemin complet: $videoPath');
 
-    final videoUrl = ServerConfig.getStreamingUrl(videoPath!);
+    final videoUrl = ServerConfig.getStreamingUrl(videoPath);
 
     print('🎬 Initialisation du lecteur d\'épisode');
     print('📁 Fichier: ${fileInfo.fileName}');

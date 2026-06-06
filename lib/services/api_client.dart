@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/server_config.dart';
+import 'user_storage_service.dart';
 
 /// Client API centralisé pour toutes les requêtes vers le serveur
 class ApiClient {
@@ -8,33 +9,48 @@ class ApiClient {
   static String get baseUrl => ServerConfig.apiBaseUrl;
 
   /// Endpoints de l'API
-  static const String _radarrPrefix = '/api/radarr';
-  static const String _sonarrPrefix = '/api/sonarr';
+  static const String _moviesPrefix = '/api/movies';
+  static const String _seriesPrefix = '/api/series';
 
-  // ====== ENDPOINTS RADARR (FILMS) ======
-  static const String _moviesRecent = '$_radarrPrefix/movies/recent';
-  static const String _moviesPopular = '$_radarrPrefix/movies/popular';
-  static const String _moviesBase = '$_radarrPrefix/movies';
-  static const String _moviesBoxOffice = '$_radarrPrefix/movies/boxoffice';
+  // ====== ENDPOINTS FILMS (Nouvelle API) ======
+  static const String _moviesBase = _moviesPrefix;
+  static const String _moviesRecent = '$_moviesPrefix/recent';
+  static const String _moviesPopular = '$_moviesPrefix/popular';
+  static const String _moviesComingSoon = '$_moviesPrefix/coming-soon';
+  static const String _moviesRecentAdditions = '$_moviesPrefix/recent-additions';
+  static const String _moviesRecentAdditionsEssentials = '$_moviesPrefix/recent-additions/essentials';
+  static const String _moviesTopRecommendations = '$_moviesPrefix/top-recommendations';
+  static const String _moviesTopRecommendationsEssentials = '$_moviesPrefix/top-recommendations/essentials';
+  static const String _moviesBoxOffice = '$_moviesPrefix/popular'; // Fallback / alias pour compatibilité
 
-  // ====== ENDPOINTS SONARR (SÉRIES) ======
-  static const String _seriesRecent = '$_sonarrPrefix/series/recent';
-  static const String _seriesPopular = '$_sonarrPrefix/series/popular';
-  static const String _seriesBase = '$_sonarrPrefix/series';
+  // ====== ENDPOINTS SÉRIES (Nouvelle API) ======
+  static const String _seriesBase = _seriesPrefix;
+  static const String _seriesPopular = '$_seriesPrefix/popular';
+  static const String _seriesRecent = '$_seriesPrefix/recent';
+  static const String _seriesRecommended = '$_seriesPrefix/recommended';
+  static const String _seriesUpcoming = '$_seriesPrefix/upcoming';
+  static const String _seriesAnime = '$_seriesPrefix/anime';
+  static const String _seriesAnimeUpcoming = '$_seriesPrefix/anime/upcoming';
+  static const String _seriesKDrama = '$_seriesPrefix/k-drama';
+  static const String _seriesStats = '$_seriesPrefix/stats';
 
   // ====== ENDPOINTS TRAILERS ======
   static const String _trailersPrefix = '/api/trailers';
   static const String _trailersRecent = '$_trailersPrefix/recent';
+  static const String _trailersUpcoming = '$_trailersPrefix/upcoming';
 
   // ====== ENDPOINTS CHAÎNES TV ======
   static const String _tvChannelsPrefix = '/api/iptv-org';
-  static const String _tvChannelsAll = '$_tvChannelsPrefix/channels/all';
-  static const String _tvChannelsBase = '$_tvChannelsPrefix/channels';
+  static const String _tvChannelsAll = '$_tvChannelsPrefix/channels/french/only-with-streams';
+  static const String _tvChannelsBase = '$_tvChannelsPrefix/channels/french';
 
   // ====== ENDPOINTS UTILISATEURS (AUTH) ======
   static const String _usersPrefix = '/api/users';
   static const String _registerEndpoint = '$_usersPrefix/register';
   static const String _loginEndpoint = '$_usersPrefix/login';
+  static const String _verifyEmailEndpoint = '$_usersPrefix/verify-email';
+  static const String _resendVerificationEndpoint = '$_usersPrefix/resend-verification';
+  static const String _forgotPasswordEndpoint = '$_usersPrefix/forgot-password';
   static const String _updateProfileEndpoint = '$_usersPrefix/profile';
   static const String _updatePasswordEndpoint = '$_usersPrefix/password';
   static const String _updatePhoneEndpoint = '$_usersPrefix/phone';
@@ -48,6 +64,15 @@ class ApiClient {
   /// URL complète pour la connexion
   static String get loginUrl => '$usersBaseUrl$_loginEndpoint';
 
+  /// URL complète pour la vérification de l'email
+  static String get verifyEmailUrl => '$usersBaseUrl$_verifyEmailEndpoint';
+
+  /// URL complète pour le renvoi du code de vérification
+  static String get resendVerificationUrl => '$usersBaseUrl$_resendVerificationEndpoint';
+
+  /// URL complète pour mot de passe oublié
+  static String get forgotPasswordUrl => '$usersBaseUrl$_forgotPasswordEndpoint';
+
   /// URL complète pour la mise à jour du profil
   static String get updateProfileUrl => '$usersBaseUrl$_updateProfileEndpoint';
 
@@ -58,16 +83,27 @@ class ApiClient {
   /// URL complète pour la mise à jour du téléphone
   static String get updatePhoneUrl => '$usersBaseUrl$_updatePhoneEndpoint';
 
-  /// URLs complètes des endpoints - Films (Radarr) - Pour compatibilité externe
+  /// URLs complètes des endpoints - Films - Pour compatibilité externe
   static String get recentMoviesUrl => '$baseUrl$_moviesRecent';
   static String get popularMoviesUrl => '$baseUrl$_moviesPopular';
   static String get allMoviesUrl => '$baseUrl$_moviesBase';
+  static String get comingSoonMoviesUrl => '$baseUrl$_moviesComingSoon';
+  static String get recentAdditionsMoviesUrl => '$baseUrl$_moviesRecentAdditions';
+  static String get recentAdditionsEssentialsMoviesUrl => '$baseUrl$_moviesRecentAdditionsEssentials';
+  static String get topRecommendationsMoviesUrl => '$baseUrl$_moviesTopRecommendations';
+  static String get topRecommendationsEssentialsMoviesUrl => '$baseUrl$_moviesTopRecommendationsEssentials';
   static String get boxOfficeMoviesUrl => '$baseUrl$_moviesBoxOffice';
 
-  /// URLs complètes des endpoints - Séries (Sonarr) - Pour compatibilité externe
+  /// URLs complètes des endpoints - Séries - Pour compatibilité externe
   static String get recentSeriesUrl => '$baseUrl$_seriesRecent';
   static String get popularSeriesUrl => '$baseUrl$_seriesPopular';
   static String get allSeriesUrl => '$baseUrl$_seriesBase';
+  static String get recommendedSeriesUrl => '$baseUrl$_seriesRecommended';
+  static String get upcomingSeriesUrl => '$baseUrl$_seriesUpcoming';
+  static String get animeSeriesUrl => '$baseUrl$_seriesAnime';
+  static String get animeUpcomingSeriesUrl => '$baseUrl$_seriesAnimeUpcoming';
+  static String get kDramaSeriesUrl => '$baseUrl$_seriesKDrama';
+  static String get statsSeriesUrl => '$baseUrl$_seriesStats';
 
   /// URLs complètes des endpoints - Trailers - Pour compatibilité externe
   static String get recentTrailersUrl => '$baseUrl$_trailersRecent';
@@ -101,7 +137,9 @@ class ApiClient {
   /// Instance singleton du client HTTP
   static final http.Client _httpClient = http.Client();
 
-  /// Effectuer une requête GET
+
+
+  /// Traiter la réponse HTTP
   static Future<ApiResponse<T>> get<T>(
     String endpoint, {
     Map<String, String>? headers,
@@ -111,17 +149,21 @@ class ApiClient {
     try {
       final url = endpoint.startsWith('http') ? endpoint : '$baseUrl$endpoint';
 
-      print('🌐 GET: $url');
+      final token = await UserStorageService.getToken();
+      final finalHeaders = {
+        ..._defaultHeaders,
+        if (token != null) 'Authorization': 'Bearer $token',
+        ...?headers,
+      };
 
       final response = await _httpClient
-          .get(Uri.parse(url), headers: {..._defaultHeaders, ...?headers})
+          .get(Uri.parse(url), headers: finalHeaders)
           .timeout(timeout ?? defaultTimeout);
 
-      print('📡 Statut: ${response.statusCode}');
+
 
       return _handleResponse<T>(response, fromJson);
     } catch (e) {
-      print('❌ Erreur GET: $e');
       return ApiResponse.error('Erreur de connexion: $e');
     }
   }
@@ -137,24 +179,125 @@ class ApiClient {
     try {
       final url = endpoint.startsWith('http') ? endpoint : '$baseUrl$endpoint';
 
-      print('🌐 POST: $url');
+      final token = await UserStorageService.getToken();
+      final finalHeaders = {
+        ..._defaultHeaders,
+        if (token != null) 'Authorization': 'Bearer $token',
+        ...?headers,
+      };
 
       final response = await _httpClient
           .post(
             Uri.parse(url),
-            headers: {..._defaultHeaders, ...?headers},
+            headers: finalHeaders,
             body: body != null ? jsonEncode(body) : null,
           )
           .timeout(timeout ?? defaultTimeout);
 
-      print('📡 Statut: ${response.statusCode}');
-
       return _handleResponse<T>(response, fromJson);
     } catch (e) {
-      print('❌ Erreur POST: $e');
       return ApiResponse.error('Erreur de connexion: $e');
     }
   }
+
+  /// Effectuer une requête PUT
+  static Future<ApiResponse<T>> put<T>(
+    String endpoint, {
+    Map<String, dynamic>? body,
+    Map<String, String>? headers,
+    Duration? timeout,
+    T Function(Map<String, dynamic>)? fromJson,
+  }) async {
+    try {
+      final url = endpoint.startsWith('http') ? endpoint : '$baseUrl$endpoint';
+
+      final token = await UserStorageService.getToken();
+      final finalHeaders = {
+        ..._defaultHeaders,
+        if (token != null) 'Authorization': 'Bearer $token',
+        ...?headers,
+      };
+
+      final response = await _httpClient
+          .put(
+            Uri.parse(url),
+            headers: finalHeaders,
+            body: body != null ? jsonEncode(body) : null,
+          )
+          .timeout(timeout ?? defaultTimeout);
+
+      return _handleResponse<T>(response, fromJson);
+    } catch (e) {
+      return ApiResponse.error('Erreur de connexion: $e');
+    }
+  }
+
+  /// Effectuer une requête PATCH
+  static Future<ApiResponse<T>> patch<T>(
+    String endpoint, {
+    Map<String, dynamic>? body,
+    Map<String, String>? headers,
+    Duration? timeout,
+    T Function(Map<String, dynamic>)? fromJson,
+  }) async {
+    try {
+      final url = endpoint.startsWith('http') ? endpoint : '$baseUrl$endpoint';
+
+      final token = await UserStorageService.getToken();
+      final finalHeaders = {
+        ..._defaultHeaders,
+        if (token != null) 'Authorization': 'Bearer $token',
+        ...?headers,
+      };
+
+      final response = await _httpClient
+          .patch(
+            Uri.parse(url),
+            headers: finalHeaders,
+            body: body != null ? jsonEncode(body) : null,
+          )
+          .timeout(timeout ?? defaultTimeout);
+
+      return _handleResponse<T>(response, fromJson);
+    } catch (e) {
+      return ApiResponse.error('Erreur de connexion: $e');
+    }
+  }
+
+  /// Effectuer une requête DELETE
+  static Future<ApiResponse<T>> delete<T>(
+    String endpoint, {
+    Map<String, dynamic>? body,
+    Map<String, String>? headers,
+    Duration? timeout,
+    T Function(Map<String, dynamic>)? fromJson,
+  }) async {
+    try {
+      final url = endpoint.startsWith('http') ? endpoint : '$baseUrl$endpoint';
+
+      final token = await UserStorageService.getToken();
+      final finalHeaders = {
+        ..._defaultHeaders,
+        if (token != null) 'Authorization': 'Bearer $token',
+        ...?headers,
+      };
+
+      // http.Client.delete n'accepte pas directement de body dans certaines versions anciennes,
+      // mais en Flutter moderne http.delete accepte bien body.
+      final response = await _httpClient
+          .delete(
+            Uri.parse(url),
+            headers: finalHeaders,
+            body: body != null ? jsonEncode(body) : null,
+          )
+          .timeout(timeout ?? defaultTimeout);
+
+      return _handleResponse<T>(response, fromJson);
+    } catch (e) {
+      return ApiResponse.error('Erreur de connexion: $e');
+    }
+  }
+
 
   /// Traiter la réponse HTTP
   static ApiResponse<T> _handleResponse<T>(
@@ -165,11 +308,6 @@ class ApiClient {
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final dynamic jsonData = jsonDecode(response.body);
 
-        print('🔍 Type de réponse JSON: ${jsonData.runtimeType}');
-        if (jsonData is Map<String, dynamic>) {
-          print('🔍 Clés disponibles: ${jsonData.keys.toList()}');
-        }
-
         // Si c'est une Map avec success/data (format API standard)
         if (jsonData is Map<String, dynamic> &&
             jsonData.containsKey('success')) {
@@ -178,6 +316,9 @@ class ApiClient {
               final result = fromJson(jsonData['data']);
               return ApiResponse.success(result);
             } else {
+              if (T == Map<String, dynamic>) {
+                return ApiResponse.success(jsonData as T);
+              }
               return ApiResponse.success(jsonData['data'] as T);
             }
           } else {
@@ -211,17 +352,26 @@ class ApiClient {
         }
         // Format inattendu
         else {
-          print('⚠️ Format de réponse inattendu: ${jsonData.runtimeType}');
           return ApiResponse.success(jsonData as T);
         }
       } else {
-        return ApiResponse.error(
-          'Erreur HTTP ${response.statusCode}: ${response.body}',
-        );
+        String errorMsg = 'Erreur HTTP ${response.statusCode}';
+        try {
+          final dynamic jsonData = jsonDecode(response.body);
+          if (jsonData is Map<String, dynamic> &&
+              jsonData.containsKey('message')) {
+            errorMsg = jsonData['message'].toString();
+          } else if (response.body.isNotEmpty && response.body.length < 150) {
+            errorMsg = response.body;
+          }
+        } catch (_) {
+          if (response.body.isNotEmpty && response.body.length < 150) {
+            errorMsg = response.body;
+          }
+        }
+        return ApiResponse.error(errorMsg);
       }
     } catch (e) {
-      print('❌ Erreur parsing JSON: $e');
-      print('📄 Contenu de la réponse: ${response.body}');
       return ApiResponse.error('Erreur de format de réponse: $e');
     }
   }
@@ -242,11 +392,9 @@ class ApiClient {
         final List<T> result = items.map((item) => fromJson(item)).toList();
         return result;
       } else {
-        print('❌ Erreur API films récents: ${response.error}');
         return [];
       }
     } catch (e) {
-      print('❌ Exception getRecentMovies: $e');
       return [];
     }
   }
@@ -265,11 +413,9 @@ class ApiClient {
         final List<T> result = items.map((item) => fromJson(item)).toList();
         return result;
       } else {
-        print('❌ Erreur API films populaires: ${response.error}');
         return [];
       }
     } catch (e) {
-      print('❌ Exception getPopularMovies: $e');
       return [];
     }
   }
@@ -287,11 +433,9 @@ class ApiClient {
         final List<T> result = items.map((item) => fromJson(item)).toList();
         return result;
       } else {
-        print('❌ Erreur API tous les films: ${response.error}');
         return [];
       }
     } catch (e) {
-      print('❌ Exception getAllMovies: $e');
       return [];
     }
   }
@@ -328,14 +472,11 @@ class ApiClient {
       if (response.isSuccess && response.data != null) {
         final List<dynamic> items = response.data as List<dynamic>;
         final List<T> result = items.map((item) => fromJson(item)).toList();
-        print('💰 Films box office récupérés via ApiClient: ${result.length}');
         return result;
       } else {
-        print('❌ Erreur API films box office: ${response.error}');
         return [];
       }
     } catch (e) {
-      print('❌ Exception getBoxOfficeMovies: $e');
       return [];
     }
   }
@@ -356,51 +497,27 @@ class ApiClient {
 
         // Gérer différents formats de réponse
         if (response.data is List) {
-          // Format direct : liste de séries
           items = response.data as List<dynamic>;
-          print('📋 Format de réponse: Liste directe (${items.length} séries)');
         } else if (response.data is Map<String, dynamic>) {
-          // Format avec wrapper : { success: true, data: [...], message: "..." }
           final responseMap = response.data as Map<String, dynamic>;
 
           if (responseMap['data'] is List) {
             items = responseMap['data'] as List<dynamic>;
-            print(
-              '📋 Format de réponse: Wrapper avec success/data (${items.length} séries)',
-            );
-            print('📊 Message: ${responseMap['message'] ?? 'Non spécifié'}');
-            print('📈 Count: ${responseMap['count'] ?? 'Non spécifié'}');
           } else if (responseMap['source'] != null) {
-            // Format avec wrapper : { data: [...], source: "...", meta: {...} }
             items = responseMap['data'] as List<dynamic>;
-            print(
-              '📋 Format de réponse: Wrapper avec source/meta (${items.length} séries)',
-            );
-            print('📊 Source: ${responseMap['source'] ?? 'Non spécifié'}');
-            print(
-              '📅 Timestamp: ${responseMap['timestamp'] ?? 'Non spécifié'}',
-            );
           } else {
-            print('⚠️ Format de réponse inattendu: Map sans champ data');
-            print('🔍 Clés disponibles: ${responseMap.keys.toList()}');
             return [];
           }
         } else {
-          print('⚠️ Format de réponse inattendu pour séries récentes');
-          print('🔍 Type reçu: ${response.data.runtimeType}');
           return [];
         }
 
         final List<T> result = items.map((item) => fromJson(item)).toList();
-        print('✅ ${result.length} séries récentes récupérées via ApiClient');
         return result;
       } else {
-        print('❌ Erreur API séries récentes: ${response.error}');
         return [];
       }
     } catch (e) {
-      print('❌ Exception getRecentSeries: $e');
-      print('🔍 Type d\'erreur: ${e.runtimeType}');
       return [];
     }
   }
@@ -419,51 +536,27 @@ class ApiClient {
 
         // Gérer différents formats de réponse
         if (response.data is List) {
-          // Format direct : liste de séries
           items = response.data as List<dynamic>;
-          print('📋 Format de réponse: Liste directe (${items.length} séries)');
         } else if (response.data is Map<String, dynamic>) {
-          // Format avec wrapper : { success: true, data: [...], message: "..." }
           final responseMap = response.data as Map<String, dynamic>;
 
           if (responseMap['data'] is List) {
             items = responseMap['data'] as List<dynamic>;
-            print(
-              '📋 Format de réponse: Wrapper avec success/data (${items.length} séries)',
-            );
-            print('📊 Message: ${responseMap['message'] ?? 'Non spécifié'}');
-            print('📈 Count: ${responseMap['count'] ?? 'Non spécifié'}');
           } else if (responseMap['source'] != null) {
-            // Format avec wrapper : { data: [...], source: "...", meta: {...} }
             items = responseMap['data'] as List<dynamic>;
-            print(
-              '📋 Format de réponse: Wrapper avec source/meta (${items.length} séries)',
-            );
-            print('📊 Source: ${responseMap['source'] ?? 'Non spécifié'}');
-            print(
-              '📅 Timestamp: ${responseMap['timestamp'] ?? 'Non spécifié'}',
-            );
           } else {
-            print('⚠️ Format de réponse inattendu: Map sans champ data');
-            print('🔍 Clés disponibles: ${responseMap.keys.toList()}');
             return [];
           }
         } else {
-          print('⚠️ Format de réponse inattendu pour séries populaires');
-          print('🔍 Type reçu: ${response.data.runtimeType}');
           return [];
         }
 
         final List<T> result = items.map((item) => fromJson(item)).toList();
-        print('✅ ${result.length} séries populaires récupérées via ApiClient');
         return result;
       } else {
-        print('❌ Erreur API séries populaires: ${response.error}');
         return [];
       }
     } catch (e) {
-      print('❌ Exception getPopularSeries: $e');
-      print('🔍 Type d\'erreur: ${e.runtimeType}');
       return [];
     }
   }
@@ -505,14 +598,32 @@ class ApiClient {
       if (response.isSuccess && response.data != null) {
         final List<dynamic> items = response.data as List<dynamic>;
         final List<T> result = items.map((item) => fromJson(item)).toList();
-        print('✅ Trailers récupérés via ApiClient: ${result.length}');
         return result;
       } else {
-        print('❌ Erreur API trailers récents: ${response.error}');
         return [];
       }
     } catch (e) {
-      print('❌ Exception getRecentTrailers: $e');
+      return [];
+    }
+  }
+
+  /// Récupérer les trailers à venir
+  static Future<List<T>> getUpcomingTrailers<T>({
+    int limit = 10,
+    required T Function(Map<String, dynamic>) fromJson,
+  }) async {
+    try {
+      final endpoint = '$_trailersUpcoming?limit=$limit';
+      final response = await get(endpoint);
+
+      if (response.isSuccess && response.data != null) {
+        final List<dynamic> items = response.data as List<dynamic>;
+        final List<T> result = items.map((item) => fromJson(item)).toList();
+        return result;
+      } else {
+        return [];
+      }
+    } catch (e) {
       return [];
     }
   }
@@ -532,16 +643,11 @@ class ApiClient {
       if (response.isSuccess && response.data != null) {
         final List<dynamic> items = response.data as List<dynamic>;
         final List<T> result = items.map((item) => fromJson(item)).toList();
-        print(
-          '✅ Chaînes TV récupérées via ApiClient: ${result.length} (page $page)',
-        );
         return result;
       } else {
-        print('❌ Erreur API chaînes TV: ${response.error}');
         return [];
       }
     } catch (e) {
-      print('❌ Exception getAllTvChannels: $e');
       return [];
     }
   }
@@ -557,10 +663,8 @@ class ApiClient {
         limit: limit,
         fromJson: fromJson,
       );
-      print('✅ Chaînes TV d\'accueil récupérées: ${channels.length}');
       return channels;
     } catch (e) {
-      print('❌ Exception getHomeTvChannels: $e');
       return [];
     }
   }
@@ -589,12 +693,8 @@ class ApiClient {
         return _filterChannelByCategory(channel, category);
       }).toList();
 
-      print(
-        '✅ Chaînes TV filtrées par catégorie "$category": ${filteredChannels.length}',
-      );
       return filteredChannels;
     } catch (e) {
-      print('❌ Exception getTvChannelsByCategory: $e');
       return [];
     }
   }
@@ -621,13 +721,10 @@ class ApiClient {
         }
 
         allChannels.addAll(channels);
-        print('📊 Page $page: ${channels.length} chaînes récupérées');
       }
 
-      print('✅ Total chaînes TV récupérées: ${allChannels.length}');
       return allChannels;
     } catch (e) {
-      print('❌ Exception getAllTvChannelsMultiPage: $e');
       return [];
     }
   }
@@ -674,10 +771,8 @@ class ApiClient {
 
       categories.sort();
       final result = ['Toutes', ...categories];
-      print('✅ Catégories de chaînes TV disponibles: ${result.length}');
       return result;
     } catch (e) {
-      print('❌ Exception getTvChannelCategories: $e');
       return [
         'Toutes',
         'Généralistes',
@@ -711,10 +806,62 @@ class ApiClient {
       );
       return response;
     } catch (e) {
-      print('❌ Erreur inscription: $e');
       return ApiResponse.error('Erreur inscription: $e');
     }
   }
+
+  /// Vérification de l'email par OTP
+  static Future<ApiResponse<T>> verifyEmail<T>({
+    required Map<String, dynamic> body,
+    T Function(Map<String, dynamic>)? fromJson,
+  }) async {
+    try {
+      final response = await post<T>(
+        verifyEmailUrl,
+        body: body,
+        fromJson: fromJson,
+      );
+      return response;
+    } catch (e) {
+      return ApiResponse.error('Erreur vérification email: $e');
+    }
+  }
+
+  /// Renvoyer le code de vérification email
+  static Future<ApiResponse<T>> resendVerification<T>({
+    required Map<String, dynamic> body,
+    T Function(Map<String, dynamic>)? fromJson,
+  }) async {
+    try {
+      final response = await post<T>(
+        resendVerificationUrl,
+        body: body,
+        fromJson: fromJson,
+      );
+      return response;
+    } catch (e) {
+      return ApiResponse.error('Erreur renvoi email: $e');
+    }
+  }
+
+  /// Demande de réinitialisation de mot de passe (mot de passe oublié)
+  static Future<ApiResponse<T>> forgotPassword<T>({
+    required Map<String, dynamic> body,
+    T Function(Map<String, dynamic>)? fromJson,
+  }) async {
+    try {
+      final response = await post<T>(
+        forgotPasswordUrl,
+        body: body,
+        fromJson: fromJson,
+      );
+      return response;
+    } catch (e) {
+      return ApiResponse.error('Erreur demande réinitialisation: $e');
+    }
+  }
+
+
 
   /// Connexion utilisateur
   static Future<ApiResponse<T>> loginUser<T>({
@@ -725,7 +872,6 @@ class ApiClient {
       final response = await post<T>(loginUrl, body: body, fromJson: fromJson);
       return response;
     } catch (e) {
-      print('❌ Erreur connexion: $e');
       return ApiResponse.error('Erreur connexion: $e');
     }
   }
@@ -733,21 +879,14 @@ class ApiClient {
   /// Tester la connectivité avec le serveur
   static Future<bool> testConnection() async {
     try {
-      print('🧪 Test de connectivité vers: $baseUrl');
-
       final response = await get(
         _moviesRecent,
         timeout: const Duration(seconds: 10),
       );
 
       final isConnected = response.isSuccess;
-      print(
-        isConnected ? '✅ Connectivité confirmée' : '❌ Test de connexion échoué',
-      );
-
       return isConnected;
     } catch (e) {
-      print('❌ Test de connexion échoué: $e');
       return false;
     }
   }

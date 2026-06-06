@@ -4,6 +4,7 @@ import '../design_system/colors.dart';
 import '../services/user_storage_service.dart';
 import 'onboarding_screen.dart';
 import 'home_screen.dart';
+import 'profile_selection_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -66,21 +67,32 @@ class _SplashScreenState extends State<SplashScreen>
     try {
       final isLoggedIn = await UserStorageService.isLoggedIn();
 
+      if (!mounted) return;
+
       if (isLoggedIn) {
-        // Utilisateur connecté - aller vers l'accueil
-        print('✅ Utilisateur connecté détecté - redirection vers l\'accueil');
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
-        );
+        // Vérifier si un profil est déjà sélectionné
+        final hasProfile = await UserStorageService.hasSelectedProfile();
+        if (!mounted) return;
+
+        if (hasProfile) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const HomeScreen()),
+          );
+        } else {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => const ProfileSelectionScreen(),
+            ),
+          );
+        }
       } else {
         // Utilisateur non connecté - aller vers l'onboarding
-        print('ℹ️ Aucun utilisateur connecté - redirection vers l\'onboarding');
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (context) => const OnboardingScreen()),
         );
       }
     } catch (e) {
-      print('❌ Erreur lors de la vérification d\'authentification: $e');
+      if (!mounted) return;
       // En cas d'erreur, aller vers l'onboarding par sécurité
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (context) => const OnboardingScreen()),

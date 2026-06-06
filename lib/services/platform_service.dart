@@ -15,7 +15,6 @@ class PlatformService {
           .timeout(const Duration(seconds: 5));
       return response.statusCode == 200;
     } catch (e) {
-      print('❌ Erreur de connexion API Plateformes: $e');
       return false;
     }
   }
@@ -26,44 +25,30 @@ class PlatformService {
     int limit = 50,
   }) async {
     try {
-      print('🔍 Récupération des contenus pour la plateforme: $platform');
-
       final response = await http
           .get(Uri.parse('$baseUrl/api/platforms/$platform?limit=$limit'))
           .timeout(const Duration(seconds: 30));
-
-      print('📊 Réponse API Plateforme: ${response.statusCode}');
-      print('📄 Corps de la réponse: ${response.body}');
 
       if (response.statusCode == 200) {
         final jsonData = json.decode(response.body);
         return PlatformContentResponse.fromJson(jsonData);
       } else {
-        print('❌ Erreur API: ${response.statusCode} - ${response.body}');
         throw Exception('Erreur ${response.statusCode}: ${response.body}');
       }
     } catch (e) {
-      print('❌ Erreur lors de la récupération des contenus: $e');
       throw Exception('Impossible de récupérer les contenus: $e');
     }
   }
 
   // Méthode de diagnostic réseau
   static Future<void> diagnoseNetwork() async {
-    print('🔍 === DIAGNOSTIC RÉSEAU PLATEFORMES ===');
-    print('🌐 URL de base: $baseUrl');
-
     try {
-      final response = await http
+      await http
           .get(Uri.parse('$baseUrl/api/health'))
           .timeout(const Duration(seconds: 5));
-
-      print('✅ Connectivité: ${response.statusCode}');
-      print('📄 Réponse: ${response.body}');
     } catch (e) {
-      print('❌ Erreur de connectivité: $e');
+      // Ignoré
     }
-    print('🔍 === FIN DIAGNOSTIC ===');
   }
 }
 

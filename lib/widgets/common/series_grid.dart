@@ -3,8 +3,6 @@ import '../../design_system/colors.dart';
 import '../../models/movie_model.dart';
 import '../../models/series_model.dart';
 import '../../screens/series_detail_screen.dart';
-import '../../data/sample_data.dart';
-import 'movie_card.dart';
 import 'series_card.dart';
 
 class SeriesGrid extends StatelessWidget {
@@ -16,24 +14,22 @@ class SeriesGrid extends StatelessWidget {
   final Function(SeriesApiModel)? onApiSeriesTap;
 
   const SeriesGrid({
-    Key? key,
+    super.key,
     required this.series,
     required this.isDarkMode,
     required this.countText,
     this.onSeriesTap,
   }) : apiSeries = null,
-       onApiSeriesTap = null,
-       super(key: key);
+       onApiSeriesTap = null;
 
   const SeriesGrid.api({
-    Key? key,
+    super.key,
     required this.apiSeries,
     required this.isDarkMode,
     required this.countText,
     this.onApiSeriesTap,
   }) : series = null,
-       onSeriesTap = null,
-       super(key: key);
+       onSeriesTap = null;
 
   @override
   Widget build(BuildContext context) {
@@ -77,7 +73,7 @@ class SeriesGrid extends StatelessWidget {
               crossAxisCount: 2,
               crossAxisSpacing: 16,
               mainAxisSpacing: 16,
-              childAspectRatio: 150 / 350, // 150px width / 350px height
+              childAspectRatio: 150 / 290, // 150px width / 290px height
             ),
             itemCount: itemCount,
             itemBuilder: (context, index) {
@@ -90,7 +86,7 @@ class SeriesGrid extends StatelessWidget {
 
                 return SizedBox(
                   width: 150,
-                  height: 350,
+                  height: 290,
                   child: SeriesCard.fromApiModel(
                     series: apiSerie,
                     isDarkMode: isDarkMode,
@@ -128,7 +124,7 @@ class SeriesGrid extends StatelessWidget {
                 final SeriesModel singleSeries = series![index];
                 return SizedBox(
                   width: 150,
-                  height: 350,
+                  height: 290,
                   child: SeriesCard.fromModel(
                     series: singleSeries,
                     isDarkMode: isDarkMode,

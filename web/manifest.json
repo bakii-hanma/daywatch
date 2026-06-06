@@ -1,6 +1,6 @@
 {
-    "name": "daywatch",
-    "short_name": "daywatch",
+    "name": "Daywatch",
+    "short_name": "Daywatch",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

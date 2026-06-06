@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 class AnimatedPosterBackground extends StatefulWidget {
-  const AnimatedPosterBackground({Key? key}) : super(key: key);
+  const AnimatedPosterBackground({super.key});
 
   @override
   State<AnimatedPosterBackground> createState() =>

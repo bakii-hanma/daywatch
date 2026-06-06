@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../design_system/colors.dart';
 import '../design_system/spacing.dart';
-import '../design_system/typography.dart';
 import '../widgets/common/search_header.dart';
 import '../widgets/common/genre_grid.dart';
 import '../widgets/common/horizontal_section.dart';
@@ -24,7 +23,7 @@ import 'actor_detail_screen.dart';
 class SearchScreen extends StatefulWidget {
   final Function(String)? onSearchActivated;
 
-  const SearchScreen({Key? key, this.onSearchActivated}) : super(key: key);
+  const SearchScreen({super.key, this.onSearchActivated});
 
   @override
   State<SearchScreen> createState() => _SearchScreenState();
@@ -264,7 +263,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
               // Section Acteurs (API avec fallback)
               _isLoadingActors
-                  ? Container(
+                  ? SizedBox(
                       height: 200,
                       child: const Center(
                         child: CircularProgressIndicator(color: Colors.red),
@@ -320,14 +319,14 @@ class _SearchScreenState extends State<SearchScreen> {
 
               // Section Derniers films (API)
               _isLoadingRecentMovies
-                  ? Container(
+                  ? SizedBox(
                       height: AppSpacing.sectionHeightXLarge,
                       child: const Center(
                         child: CircularProgressIndicator(color: Colors.red),
                       ),
                     )
                   : _recentMovies.isEmpty
-                  ? Container(
+                  ? SizedBox(
                       height: AppSpacing.sectionHeightXLarge,
                       child: Center(
                         child: Column(
@@ -400,14 +399,14 @@ class _SearchScreenState extends State<SearchScreen> {
 
               // Section Dernières séries (API)
               _isLoadingLatestSeries
-                  ? Container(
+                  ? SizedBox(
                       height: AppSpacing.sectionHeightXLarge,
                       child: const Center(
                         child: CircularProgressIndicator(color: Colors.red),
                       ),
                     )
                   : _latestSeries.isEmpty
-                  ? Container(
+                  ? SizedBox(
                       height: AppSpacing.sectionHeightXLarge,
                       child: Center(
                         child: Column(

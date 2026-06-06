@@ -7,11 +7,11 @@ class CommentInputField extends StatelessWidget {
   final String hintText;
 
   const CommentInputField({
-    Key? key,
+    super.key,
     required this.isDarkMode,
     this.onSend,
     this.hintText = 'Écrire un commentaire à propos du film',
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

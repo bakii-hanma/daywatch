@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:daywatch/models/tv_channel_model.dart';
-import 'package:daywatch/services/tv_channel_service.dart';
 
 void main() {
   setUpAll(() async {

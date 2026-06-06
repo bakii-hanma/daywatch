@@ -5,8 +5,7 @@ import '../widgets/common/subscription_card.dart';
 class PaymentScreen extends StatefulWidget {
   final Map<String, String> selectedSubscription;
 
-  const PaymentScreen({Key? key, required this.selectedSubscription})
-    : super(key: key);
+  const PaymentScreen({super.key, required this.selectedSubscription});
 
   @override
   State<PaymentScreen> createState() => _PaymentScreenState();

@@ -9,12 +9,12 @@ class SectionHeader extends StatelessWidget {
   final bool isDarkMode;
 
   const SectionHeader({
-    Key? key,
+    super.key,
     required this.title,
     this.showSeeMore = true,
     this.onSeeMoreTap,
     required this.isDarkMode,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

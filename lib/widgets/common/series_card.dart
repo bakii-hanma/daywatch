@@ -16,9 +16,10 @@ class SeriesCard extends StatelessWidget {
   final VoidCallback? onTap;
   final VoidCallback? onFavoriteTap;
   final bool isNetworkImage;
+  final bool isFavorite;
 
   const SeriesCard({
-    Key? key,
+    super.key,
     required this.imagePath,
     required this.title,
     required this.genre,
@@ -29,12 +30,14 @@ class SeriesCard extends StatelessWidget {
     this.onTap,
     this.onFavoriteTap,
     this.isNetworkImage = false,
-  }) : super(key: key);
+    this.isFavorite = false,
+  });
 
   // Constructeur pour les séries de l'API
   factory SeriesCard.fromApiModel({
     required SeriesApiModel series,
     required bool isDarkMode,
+    bool isFavorite = false,
     VoidCallback? onTap,
     VoidCallback? onFavoriteTap,
   }) {
@@ -49,6 +52,7 @@ class SeriesCard extends StatelessWidget {
       onTap: onTap,
       onFavoriteTap: onFavoriteTap,
       isNetworkImage: true,
+      isFavorite: isFavorite,
     );
   }
 
@@ -56,6 +60,7 @@ class SeriesCard extends StatelessWidget {
   factory SeriesCard.fromModel({
     required SeriesModel series,
     required bool isDarkMode,
+    bool isFavorite = false,
     VoidCallback? onTap,
     VoidCallback? onFavoriteTap,
   }) {
@@ -70,6 +75,7 @@ class SeriesCard extends StatelessWidget {
       onTap: onTap,
       onFavoriteTap: onFavoriteTap,
       isNetworkImage: false,
+      isFavorite: isFavorite,
     );
   }
 
@@ -79,7 +85,7 @@ class SeriesCard extends StatelessWidget {
       onTap: onTap,
       child: Container(
         width: 150,
-        height: 250,
+        height: 280,
         decoration: BoxDecoration(
           color: AppColors.getWidgetBackgroundColor(isDarkMode),
           borderRadius: BorderRadius.circular(AppSpacing.radiusMedium),
@@ -95,9 +101,9 @@ class SeriesCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Image avec note et icône favoris
-            Container(
+            SizedBox(
               width: 150,
-              height: 225,
+              height: 200,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(AppSpacing.radiusMedium),
                 child: Stack(
@@ -136,18 +142,19 @@ class SeriesCard extends StatelessWidget {
                       ),
                     ),
                     // Icône favoris en haut à droite
-                    Positioned(
-                      top: AppSpacing.sm,
-                      right: AppSpacing.sm,
-                      child: GestureDetector(
-                        onTap: onFavoriteTap,
-                        child: const Icon(
-                          Icons.bookmark,
-                          color: AppColors.primary,
-                          size: 25,
+                    if (onFavoriteTap != null)
+                      Positioned(
+                        top: AppSpacing.sm,
+                        right: AppSpacing.sm,
+                        child: GestureDetector(
+                          onTap: onFavoriteTap,
+                          child: Icon(
+                            isFavorite ? Icons.bookmark : Icons.bookmark_border,
+                            color: isFavorite ? AppColors.primary : Colors.white,
+                            size: 25,
+                          ),
                         ),
                       ),
-                    ),
                   ],
                 ),
               ),
@@ -209,18 +216,23 @@ class SeriesCard extends StatelessWidget {
       );
     }
 
-    if (isNetworkImage) {
-      print('🖼️ Chargement image série: "$imagePath"');
+    String resolvedImagePath = imagePath;
+    if (imagePath.startsWith('/')) {
+      resolvedImagePath = 'https://api.daywatch.online$imagePath';
+    }
+
+    final isNetwork = isNetworkImage ||
+        resolvedImagePath.startsWith('http://') ||
+        resolvedImagePath.startsWith('https://');
+
+    if (isNetwork) {
       return Image.network(
-        imagePath,
+        resolvedImagePath,
         width: double.infinity,
         height: double.infinity,
         fit: BoxFit.cover,
         loadingBuilder: (context, child, loadingProgress) {
-          if (loadingProgress == null) {
-            print('✅ Image série chargée: "$imagePath"');
-            return child;
-          }
+          if (loadingProgress == null) return child;
           return Container(
             width: double.infinity,
             height: double.infinity,
@@ -231,7 +243,6 @@ class SeriesCard extends StatelessWidget {
           );
         },
         errorBuilder: (context, error, stackTrace) {
-          print('❌ Erreur image série: "$imagePath" - $error');
           return Container(
             width: double.infinity,
             height: double.infinity,

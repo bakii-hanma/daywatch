@@ -10,12 +10,12 @@ class ActorCard extends StatelessWidget {
   final VoidCallback? onTap;
 
   const ActorCard({
-    Key? key,
+    super.key,
     required this.imagePath,
     required this.name,
     required this.isDarkMode,
     this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

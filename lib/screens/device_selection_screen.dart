@@ -5,7 +5,7 @@ import '../design_system/spacing.dart';
 import '../screens/home_screen.dart';
 
 class DeviceSelectionScreen extends StatelessWidget {
-  const DeviceSelectionScreen({Key? key}) : super(key: key);
+  const DeviceSelectionScreen({super.key});
 
   @override
   Widget build(BuildContext context) {

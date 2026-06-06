@@ -7,6 +7,72 @@ double? _toDouble(dynamic value) {
   return null;
 }
 
+// Extrait poster/backdrop/banner quel que soit le format (tableau Radarr ou objet normalisé)
+MovieImages _parseImages(dynamic raw) {
+  if (raw == null) return const MovieImages();
+
+  // Format normalisé : {"poster":"...", "backdrop":"...", "banner":"..."}
+  if (raw is Map) {
+    if (!raw.containsKey('coverType')) {
+      return MovieImages(
+        poster: raw['poster'] as String?,
+        backdrop: raw['backdrop'] as String?,
+        banner: raw['banner'] as String?,
+      );
+    }
+  }
+
+  // Format Radarr natif : [{"coverType":"poster","remoteUrl":"..."}, ...]
+  if (raw is List) {
+    String? poster, backdrop, banner;
+    for (final img in raw) {
+      if (img is! Map) continue;
+      final type = img['coverType']?.toString() ?? '';
+      final url = img['remoteUrl']?.toString() ?? img['url']?.toString();
+      if (url == null || url.isEmpty) continue;
+      if (type == 'poster') {
+        poster = url;
+      } else if (type == 'fanart' || type == 'backdrop') {
+        backdrop = url;
+      } else if (type == 'banner') {
+        banner = url;
+      }
+    }
+    return MovieImages(poster: poster, backdrop: backdrop, banner: banner);
+  }
+
+  return const MovieImages();
+}
+
+// Extrait rating/imdbRating/tmdbRating depuis ratings Radarr ou champs directs
+(double rating, double? imdbRating, double? tmdbRating) _parseRatings(Map<String, dynamic> json) {
+  double rating = 0.0;
+  double? imdbRating;
+  double? tmdbRating;
+
+  // Format Radarr : ratings.tmdb.value / ratings.imdb.value
+  final ratingsMap = json['ratings'];
+  if (ratingsMap is Map) {
+    final tmdbR = ratingsMap['tmdb'];
+    final imdbR = ratingsMap['imdb'];
+    if (tmdbR is Map) {
+      tmdbRating = _toDouble(tmdbR['value']);
+      rating = tmdbRating ?? 0.0;
+    }
+    if (imdbR is Map) {
+      imdbRating = _toDouble(imdbR['value']);
+      if (rating == 0.0) rating = imdbRating ?? 0.0;
+    }
+  }
+
+  // Format normalisé : champs directs
+  if (rating == 0.0) rating = _toDouble(json['rating']) ?? 0.0;
+  imdbRating ??= _toDouble(json['imdbRating']);
+  tmdbRating ??= _toDouble(json['tmdbRating']);
+
+  return (rating, imdbRating, tmdbRating);
+}
+
 class MovieModel {
   final String id;
   final String title;
@@ -247,6 +313,75 @@ class MovieApiModel {
   });
 
   factory MovieApiModel.fromJson(Map<String, dynamic> json) {
+    // Fonctionne pour les deux formats : normalisé ET Radarr natif
+    final images = _parseImages(json['images']);
+    final (rating, imdbRating, tmdbRating) = _parseRatings(json);
+
+    // mediaInfo : format normalisé (objet direct) ou Radarr (via movieFile)
+    ExtendedMovieMediaInfo mediaInfo;
+    if (json['mediaInfo'] is Map<String, dynamic>) {
+      mediaInfo = ExtendedMovieMediaInfo.fromJson(json['mediaInfo'] as Map<String, dynamic>);
+    } else {
+      // Format Radarr : extraire depuis movieFile
+      final movieFile = json['movieFile'];
+      if (movieFile is Map) {
+        final qualityField = movieFile['quality'];
+        String? quality;
+        if (qualityField is Map) {
+          final qi = qualityField['quality'];
+          quality = qi is Map ? qi['name']?.toString() : null;
+        } else {
+          quality = qualityField?.toString();
+        }
+        final mInfo = movieFile['mediaInfo'];
+        String? resolution, videoCodec, audioCodec;
+        if (mInfo is Map) {
+          resolution = '${mInfo['width'] ?? 0}x${mInfo['height'] ?? 0}';
+          videoCodec = mInfo['videoCodec']?.toString();
+          audioCodec = mInfo['audioCodecID']?.toString() ?? mInfo['audioCodec']?.toString();
+        }
+        final path = movieFile['path']?.toString() ?? json['path']?.toString();
+        mediaInfo = ExtendedMovieMediaInfo(
+          path: path,
+          folderName: json['folderName']?.toString(),
+          quality: quality,
+          sizeOnDisk: _toDouble(movieFile['size']) ?? 0.0,
+          resolution: resolution,
+          isStreamable: json['hasFile'] ?? false,
+          videoCodec: videoCodec,
+          audioCodec: audioCodec,
+          fullPath: path,
+        );
+      } else {
+        mediaInfo = ExtendedMovieMediaInfo.empty();
+      }
+    }
+
+    // releaseInfo : format normalisé (objet) ou Radarr (champs directs)
+    final MovieReleaseInfo releaseInfo;
+    if (json['releaseInfo'] is Map<String, dynamic>) {
+      releaseInfo = MovieReleaseInfo.fromJson(json['releaseInfo'] as Map<String, dynamic>);
+    } else {
+      releaseInfo = MovieReleaseInfo(
+        inCinemas: json['inCinemas']?.toString(),
+        digitalRelease: json['digitalRelease']?.toString(),
+        physicalRelease: json['physicalRelease']?.toString(),
+        status: json['status']?.toString(),
+      );
+    }
+
+    // genres : liste de strings (les deux formats)
+    final genresList = json['genres'];
+    final genres = genresList is List
+        ? genresList.map((g) => g.toString()).toList()
+        : <String>[];
+
+    // tags : chaine dans format normalisé, entiers dans Radarr (ignorés)
+    final tagsList = json['tags'];
+    final tags = (tagsList is List && tagsList.isNotEmpty && tagsList.first is String)
+        ? List<String>.from(tagsList)
+        : <String>[];
+
     return MovieApiModel(
       id: json['id'] ?? 0,
       tmdbId: json['tmdbId'] ?? 0,
@@ -254,38 +389,78 @@ class MovieApiModel {
       originalTitle: json['originalTitle'] ?? '',
       overview: json['overview'] ?? '',
       year: json['year'] ?? 0,
-      rating: _toDouble(json['rating']) ?? 0.0,
-      imdbRating: _toDouble(json['imdbRating']),
-      tmdbRating: _toDouble(json['tmdbRating']),
+      rating: rating,
+      imdbRating: imdbRating,
+      tmdbRating: tmdbRating,
       popularity: _toDouble(json['popularity']) ?? 0.0,
       runtime: json['runtime'] ?? 0,
-      certification: json['certification'],
-      isAvailable: json['isAvailable'] ?? false,
-      downloaded: json['downloaded'] ?? false,
+      certification: json['certification']?.toString(),
+      isAvailable: json['isAvailable'] ?? json['hasFile'] ?? false,
+      downloaded: json['downloaded'] ?? json['hasFile'] ?? false,
       monitored: json['monitored'] ?? false,
-      images: MovieImages.fromJson(json['images'] ?? {}),
-      mediaInfo: ExtendedMovieMediaInfo.fromJson(json['mediaInfo'] ?? {}),
-      releaseInfo: MovieReleaseInfo.fromJson(json['releaseInfo'] ?? {}),
-      genres: List<String>.from(json['genres'] ?? []),
-      studio: json['studio'],
-      website: json['website'],
-      youTubeTrailerId: json['youTubeTrailerId'],
-      collection: json['collection'] != null
-          ? MovieCollection.fromJson(json['collection'])
+      images: images,
+      mediaInfo: mediaInfo,
+      releaseInfo: releaseInfo,
+      genres: genres,
+      studio: json['studio']?.toString(),
+      website: json['website']?.toString(),
+      youTubeTrailerId: json['youTubeTrailerId']?.toString(),
+      collection: json['collection'] is Map
+          ? MovieCollection.fromJson(json['collection'] as Map<String, dynamic>)
           : null,
-      tags: List<String>.from(json['tags'] ?? []),
+      tags: tags,
       similarMovies: (json['similarMovies'] as List? ?? [])
-          .map((item) => SimilarMovie.fromJson(item))
+          .map((item) => SimilarMovie.fromJson(item as Map<String, dynamic>))
           .toList(),
-      cast: json['cast'] != null ? MovieCast.fromJson(json['cast']) : null,
-      gallery: json['gallery'] != null
-          ? MovieGallery.fromJson(json['gallery'])
+      cast: json['cast'] != null && json['cast'] is Map
+          ? MovieCast.fromJson(json['cast'] as Map<String, dynamic>)
           : null,
-      boxOffice: json['boxOffice'] != null
-          ? MovieBoxOffice.fromJson(json['boxOffice'])
+      gallery: json['gallery'] != null && json['gallery'] is Map
+          ? MovieGallery.fromJson(json['gallery'] as Map<String, dynamic>)
+          : null,
+      boxOffice: json['boxOffice'] != null && json['boxOffice'] is Map
+          ? MovieBoxOffice.fromJson(json['boxOffice'] as Map<String, dynamic>)
           : null,
       boxOfficeRank: json['boxOfficeRank'],
     );
+  }
+
+  /// Alias de fromJson — le format est détecté automatiquement.
+  factory MovieApiModel.fromRadarrJson(Map<String, dynamic> json) =>
+      MovieApiModel.fromJson(json);
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'tmdbId': tmdbId,
+      'title': title,
+      'originalTitle': originalTitle,
+      'overview': overview,
+      'year': year,
+      'rating': rating,
+      'imdbRating': imdbRating,
+      'tmdbRating': tmdbRating,
+      'popularity': popularity,
+      'runtime': runtime,
+      'certification': certification,
+      'isAvailable': isAvailable,
+      'downloaded': downloaded,
+      'monitored': monitored,
+      'images': images.toJson(),
+      'mediaInfo': mediaInfo.toJson(),
+      'releaseInfo': releaseInfo.toJson(),
+      'genres': genres,
+      'studio': studio,
+      'website': website,
+      'youTubeTrailerId': youTubeTrailerId,
+      'collection': collection?.toJson(),
+      'tags': tags,
+      'similarMovies': similarMovies.map((m) => m.toJson()).toList(),
+      'cast': cast?.toJson(),
+      'gallery': gallery?.toJson(),
+      'boxOffice': boxOffice?.toJson(),
+      'boxOfficeRank': boxOfficeRank,
+    };
   }
 
   // Méthode pour parser les données essentielles (nouvelle structure)
@@ -363,6 +538,8 @@ class MovieApiModel {
     );
   }
 
+
+
   // Méthode pour convertir vers l'ancien modèle pour compatibilité
   MovieModel toMovieModel() {
     return MovieModel(
@@ -430,6 +607,12 @@ class MovieImages {
       banner: json['banner'],
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'poster': poster,
+    'backdrop': backdrop,
+    'banner': banner,
+  };
 }
 
 class MovieMediaInfo {
@@ -468,6 +651,18 @@ class MovieMediaInfo {
       audioCodec: json['audioCodec'],
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'path': path,
+    'folderName': folderName,
+    'quality': quality,
+    'sizeOnDisk': sizeOnDisk,
+    'format': format,
+    'resolution': resolution,
+    'isStreamable': isStreamable,
+    'videoCodec': videoCodec,
+    'audioCodec': audioCodec,
+  };
 }
 
 class MovieReleaseInfo {
@@ -492,6 +687,13 @@ class MovieReleaseInfo {
     );
   }
 
+  Map<String, dynamic> toJson() => {
+    'inCinemas': inCinemas,
+    'digitalRelease': digitalRelease,
+    'physicalRelease': physicalRelease,
+    'status': status,
+  };
+
   // Méthode pour créer une instance vide
   static MovieReleaseInfo empty() {
     return const MovieReleaseInfo(
@@ -515,6 +717,11 @@ class MovieCollection {
       tmdbId: json['tmdbId'] ?? 0,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'title': title,
+    'tmdbId': tmdbId,
+  };
 }
 
 class MovieCast {
@@ -649,6 +856,18 @@ class SimilarMovie {
       backdrop: json['backdrop'],
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'title': title,
+    'originalTitle': originalTitle,
+    'overview': overview,
+    'year': year,
+    'rating': rating,
+    'popularity': popularity,
+    'poster': poster,
+    'backdrop': backdrop,
+  };
 }
 
 class MovieGallery {
@@ -698,6 +917,14 @@ class MovieBoxOffice {
       profitMargin: json['profitMargin'] ?? 0,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'budget': budget,
+    'revenue': revenue,
+    'profit': profit,
+    'roi': roi,
+    'profitMargin': profitMargin,
+  };
 }
 
 class GalleryImage {
@@ -799,6 +1026,23 @@ class ExtendedMovieMediaInfo extends MovieMediaInfo {
     );
   }
 
+  @override
+  Map<String, dynamic> toJson() {
+    final map = super.toJson();
+    map.addAll({
+      'fileName': fileName,
+      'fullPath': fullPath,
+      'relativePath': relativePath,
+      'fileSize': fileSize,
+      'fileDateAdded': fileDateAdded,
+      'streamUrl': streamUrl,
+      'qualityDetails': qualityDetails?.toJson(),
+      'technicalInfo': technicalInfo?.toJson(),
+      'languages': languages.map((l) => l.toJson()).toList(),
+    });
+    return map;
+  }
+
   // Méthode pour créer une instance vide
   static ExtendedMovieMediaInfo empty() {
     return ExtendedMovieMediaInfo(
@@ -842,6 +1086,12 @@ class QualityDetails {
       source: json['source'] ?? '',
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'resolution': resolution,
+    'source': source,
+  };
 }
 
 class TechnicalInfo {
@@ -886,6 +1136,20 @@ class TechnicalInfo {
       runtime: json['runtime'],
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'videoCodec': videoCodec,
+    'videoBitrate': videoBitrate,
+    'videoFps': videoFps,
+    'audioCodec': audioCodec,
+    'audioBitrate': audioBitrate,
+    'audioChannels': audioChannels,
+    'audioLanguages': audioLanguages,
+    'subtitles': subtitles,
+    'resolution': resolution,
+    'scanType': scanType,
+    'runtime': runtime,
+  };
 }
 
 class Language {
@@ -897,6 +1161,11 @@ class Language {
   factory Language.fromJson(Map<String, dynamic> json) {
     return Language(id: json['id'] ?? 0, name: json['name'] ?? '');
   }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+  };
 }
 
 // Modèle pour les bandes-annonces depuis l'API
@@ -906,6 +1175,7 @@ class TrailerApiModel {
   final String releaseDate;
   final String trailerUrl;
   final String posterPath;
+  final String backdropPath;
 
   TrailerApiModel({
     required this.title,
@@ -913,6 +1183,7 @@ class TrailerApiModel {
     required this.releaseDate,
     required this.trailerUrl,
     required this.posterPath,
+    required this.backdropPath,
   });
 
   factory TrailerApiModel.fromJson(Map<String, dynamic> json) {
@@ -921,19 +1192,24 @@ class TrailerApiModel {
       overview: json['overview'] ?? '',
       releaseDate: json['releaseDate'] ?? '',
       trailerUrl: json['trailerUrl'] ?? '',
-      posterPath: json['posterPath'] ?? '',
+      posterPath: json['poster'] ?? json['posterPath'] ?? '',
+      backdropPath: json['backdrop'] ?? json['backdropPath'] ?? '',
     );
   }
 
-  // Getter pour obtenir l'URL complète de l'image
+  // Getter pour obtenir l'URL complète de l'image (de préférence le backdrop pour le format paysage)
   String get fullPosterUrl {
+    if (backdropPath.isNotEmpty) {
+      if (backdropPath.startsWith('http')) return backdropPath;
+      return 'https://image.tmdb.org/t/p/w780$backdropPath';
+    }
     if (posterPath.isEmpty) return '';
     if (posterPath.startsWith('http')) return posterPath;
     return 'https://image.tmdb.org/t/p/w500$posterPath';
   }
 
-  // Getter pour la durée formatée (approximative pour les trailers)
-  String get duration => '2-3 min'; // Durée standard des trailers
+  // Getter pour la durée formatée (retirée pour les trailers)
+  String get duration => '';
 
   // Getter pour l'année depuis releaseDate
   String get year {

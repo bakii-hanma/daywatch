@@ -10,13 +10,13 @@ class DownloadItemCard extends StatelessWidget {
   final VoidCallback? onDeleteTap;
 
   const DownloadItemCard({
-    Key? key,
+    super.key,
     required this.item,
     required this.isDarkMode,
     required this.isMovies,
     this.onTap,
     this.onDeleteTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

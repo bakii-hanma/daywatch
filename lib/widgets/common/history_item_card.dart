@@ -9,12 +9,12 @@ class HistoryItemCard extends StatelessWidget {
   final VoidCallback? onTap;
 
   const HistoryItemCard({
-    Key? key,
+    super.key,
     required this.item,
     required this.isDarkMode,
     required this.isMovies,
     this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

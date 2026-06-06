@@ -12,12 +12,12 @@ class TvChannelCard extends StatelessWidget {
   final VoidCallback? onTap;
 
   const TvChannelCard({
-    Key? key,
+    super.key,
     this.channel,
     this.channelName,
     this.program,
     this.onTap,
-  }) : super(key: key);
+  });
 
   // Obtenir le nom de la chaîne
   String get _channelName => channel?.name ?? channelName ?? 'Chaîne';

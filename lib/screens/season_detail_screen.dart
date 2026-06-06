@@ -9,7 +9,6 @@ import '../models/movie_model.dart';
 import '../models/series_model.dart';
 import '../widgets/common/episode_card.dart';
 import '../screens/episode_detail_screen.dart';
-import '../data/sample_data.dart';
 import '../services/series_service.dart';
 import '../config/server_config.dart';
 
@@ -19,19 +18,18 @@ class SeasonDetailScreen extends StatefulWidget {
   final int? seasonNumber; // Numéro de la saison pour récupérer les épisodes
   final List<EpisodeApiModel>? episodes; // Épisodes déjà récupérés
 
-  const SeasonDetailScreen({Key? key, required this.season})
+  const SeasonDetailScreen({super.key, required this.season})
     : seriesId = null,
       seasonNumber = null,
-      episodes = null,
-      super(key: key);
+      episodes = null;
 
   const SeasonDetailScreen.fromApi({
-    Key? key,
+    super.key,
     required this.season,
     required this.seriesId,
     required this.seasonNumber,
     this.episodes, // Nouveau paramètre pour les épisodes pré-récupérés
-  }) : super(key: key);
+  });
 
   @override
   State<SeasonDetailScreen> createState() => _SeasonDetailScreenState();
@@ -178,7 +176,7 @@ class _SeasonDetailScreenState extends State<SeasonDetailScreen>
                     constraints: BoxConstraints(minHeight: 200, maxHeight: 300),
                     child: _buildVideoPlayer(isDarkMode),
                   )
-                : Container(
+                : SizedBox(
                     height: 250,
                     width: double.infinity,
                     child: _buildSeasonImage(),
@@ -463,7 +461,7 @@ class _SeasonDetailScreenState extends State<SeasonDetailScreen>
       return;
     }
 
-    if (episode.hasFile && videoPath != null && videoPath.isNotEmpty) {
+    if (episode.hasFile && videoPath.isNotEmpty) {
       // Construire l'URL complète avec le préfixe du serveur
       final videoUrl = ServerConfig.getStreamingUrl(videoPath);
 
@@ -1171,7 +1169,7 @@ class _SeasonDetailScreenState extends State<SeasonDetailScreen>
         ),
 
         // Tab Content
-        Container(
+        SizedBox(
           height: 600,
           child: TabBarView(
             controller: _tabController,
@@ -1351,7 +1349,7 @@ class _SeasonDetailScreenState extends State<SeasonDetailScreen>
                 );
               },
             );
-          }).toList(),
+          }),
         ],
       );
     }
@@ -1366,7 +1364,7 @@ class _SeasonDetailScreenState extends State<SeasonDetailScreen>
             episode: apiEpisode,
             isDarkMode: isDarkMode,
           );
-        }).toList(),
+        }),
       ],
     );
   }

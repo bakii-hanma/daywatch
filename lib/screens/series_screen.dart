@@ -6,10 +6,9 @@ import '../widgets/common/genre_filter_bar.dart';
 import '../models/series_model.dart';
 import '../services/series_service.dart';
 import '../config/server_config.dart';
-import 'series_detail_screen.dart';
 
 class SeriesScreen extends StatefulWidget {
-  const SeriesScreen({Key? key}) : super(key: key);
+  const SeriesScreen({super.key});
 
   @override
   State<SeriesScreen> createState() => _SeriesScreenState();
@@ -180,12 +179,12 @@ class _SeriesScreenState extends State<SeriesScreen> {
           (sum, episodes) => sum + episodes.length,
         );
 
-        print('✅ Test réussi: ${totalEpisodes} épisodes récupérés');
+        print('✅ Test réussi: $totalEpisodes épisodes récupérés');
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Test réussi: ${totalEpisodes} épisodes récupérés pour ${enrichedSeries.title}',
+              'Test réussi: $totalEpisodes épisodes récupérés pour ${enrichedSeries.title}',
             ),
             backgroundColor: Colors.green,
           ),

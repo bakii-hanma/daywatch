@@ -1,17 +1,18 @@
 import 'package:flutter/material.dart';
-import 'dart:ui';
+import 'dart:io' show Platform;
+import 'dart:math';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../design_system/colors.dart';
 import '../design_system/spacing.dart';
 import '../design_system/typography.dart';
 import '../widgets/daywatch_logo.dart';
 import '../widgets/common/animated_poster_background.dart';
 import '../utils/alert_utils.dart';
-import 'otp_verification_screen.dart';
 import 'register_screen.dart';
 import 'forgot_password_screen.dart';
 import '../services/api_client.dart';
 import '../services/user_storage_service.dart';
-import 'home_screen.dart';
+import 'profile_selection_screen.dart';
 import '../widgets/common/custom_text_field.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -27,6 +28,18 @@ class _LoginScreenState extends State<LoginScreen> {
 
   bool _isLoading = false;
 
+  Future<String> _getOrCreateDeviceId() async {
+    final prefs = await SharedPreferences.getInstance();
+    String? deviceId = prefs.getString('device_id');
+    if (deviceId == null) {
+      final random = Random();
+      final parts = List.generate(4, (_) => random.nextInt(1000000).toString().padLeft(6, '0'));
+      deviceId = 'device_${DateTime.now().millisecondsSinceEpoch}_${parts.join('')}';
+      await prefs.setString('device_id', deviceId);
+    }
+    return deviceId;
+  }
+
   Future<void> _handleLogin() async {
     final username = _usernameController.text.trim();
     final password = _passwordController.text;
@@ -41,13 +54,37 @@ class _LoginScreenState extends State<LoginScreen> {
     }
     setState(() => _isLoading = true);
     try {
+      // Récupérer les informations de l'appareil
+      final deviceId = await _getOrCreateDeviceId();
+      String deviceName = 'Appareil Mobile';
+      try {
+        deviceName = Platform.localHostname;
+      } catch (_) {}
+
+      String deviceType = 'Mobile';
+      if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+        deviceType = 'Desktop';
+      }
+
+      final body = {
+        'email': username,
+        'password': password,
+        'deviceId': deviceId,
+        'deviceName': deviceName,
+        'deviceType': deviceType,
+        'operatingSystem': Platform.operatingSystemVersion,
+        'appVersion': '1.0.0'
+      };
+
       final response = await ApiClient.loginUser<Map<String, dynamic>>(
-        body: {'email': username, 'password': password},
+        body: body,
       );
       setState(() => _isLoading = false);
       if (response.isSuccess && response.data != null) {
         // Sauvegarder les données utilisateur
         await UserStorageService.saveUserData(response.data!);
+
+        if (!mounted) return;
 
         // Connexion réussie, naviguer vers l'écran d'accueil
         AlertUtils.showSuccess(
@@ -57,16 +94,24 @@ class _LoginScreenState extends State<LoginScreen> {
               'Utilisateur connecté: $username, données: ${response.data}',
         );
 
-        // Naviguer vers l'écran d'accueil en remplaçant toute la pile de navigation
+        // Naviguer vers l'écran de sélection de profil en remplaçant toute la pile de navigation
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          MaterialPageRoute(builder: (context) => const ProfileSelectionScreen()),
           (route) => false,
         );
       } else {
+        // Gestion de l'erreur limite d'appareils atteinte
+        final errorMessage = response.error ?? 'Erreur de connexion.';
+        final isMaxDevices = errorMessage.contains('MAX_DEVICES_REACHED') || 
+                            errorMessage.contains('Limite d\'appareils') ||
+                            (response.error != null && response.error!.contains('connectés connectés')); // Par précaution
+
         AlertUtils.showError(
           context: context,
-          message: response.error ?? 'Erreur de connexion.',
+          message: isMaxDevices 
+              ? 'Limite d\'appareils connectés atteinte pour votre abonnement. Veuillez déconnecter un autre appareil.'
+              : errorMessage,
           debugDetails: 'Échec de connexion pour $username: ${response.error}',
         );
       }

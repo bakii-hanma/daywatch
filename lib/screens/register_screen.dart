@@ -1,9 +1,6 @@
-import 'package:daywatch/screens/device_selection_screen.dart';
 import 'package:flutter/material.dart';
-import 'dart:ui';
 import '../design_system/colors.dart';
 import '../design_system/spacing.dart';
-import '../design_system/typography.dart';
 import '../widgets/daywatch_logo.dart';
 import '../widgets/common/animated_poster_background.dart';
 import '../widgets/common/custom_text_field.dart';
@@ -31,6 +28,102 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _passwordController.dispose();
     _emailController.dispose();
     super.dispose();
+  }
+
+  Future<void> _handleRegister() async {
+    // Vérifier que les champs ne sont pas vides
+    if (_usernameController.text.isEmpty ||
+        _emailController.text.isEmpty ||
+        _phoneNumberController.text.isEmpty ||
+        _passwordController.text.isEmpty) {
+      AlertUtils.showError(
+        context: context,
+        message: 'Veuillez remplir tous les champs',
+        debugDetails:
+            'Tentative d\'inscription avec des champs vides: ' 
+            'username=${_usernameController.text.isEmpty}, ' 
+            'email=${_emailController.text.isEmpty}, ' 
+            'phone=${_phoneNumberController.text.isEmpty}, ' 
+            'password=${_passwordController.text.isEmpty}',
+      );
+      return;
+    }
+
+    // Afficher un indicateur de chargement
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) =>
+          const Center(child: CircularProgressIndicator()),
+    );
+
+    // Préparer les données d'inscription
+    final userData = {
+      'username': _usernameController.text,
+      'email': _emailController.text,
+      'phoneNumber': _phoneNumberController.text,
+      'password': _passwordController.text,
+    };
+
+    try {
+      // Appeler l'API d'inscription
+      final response = await ApiClient.registerUser(
+        body: userData,
+      );
+
+      if (!mounted) return;
+
+      // Fermer le dialogue de chargement
+      if (Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
+
+      if (response.isSuccess) {
+        // Afficher un message de succès
+        AlertUtils.showSuccess(
+          context: context,
+          message: 'Inscription réussie !',
+          debugDetails:
+              'Utilisateur inscrit avec succès: username=${_usernameController.text}, email=${_emailController.text}',
+        );
+
+        // Naviguer vers l'écran de vérification OTP
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => OtpVerificationScreen(
+              email: _emailController.text,
+              password: _passwordController.text,
+            ),
+          ),
+        );
+      } else {
+        // Afficher le message d'erreur
+        AlertUtils.showError(
+          context: context,
+          message:
+              response.error ?? 'Erreur d\'inscription',
+          debugDetails:
+              'Échec d\'inscription: username=${_usernameController.text}, email=${_emailController.text}, erreur API=${response.error}',
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+
+      // Fermer le dialogue de chargement
+      if (Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
+
+      // Afficher l'erreur
+      AlertUtils.showError(
+        context: context,
+        message:
+            'Une erreur est survenue lors de l\'inscription',
+        debugDetails:
+            'Exception lors de l\'inscription: username=${_usernameController.text}, email=${_emailController.text}, exception=$e',
+      );
+    }
   }
 
   @override
@@ -202,106 +295,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     width: double.infinity,
                     height: 50,
                     child: ElevatedButton(
-                      onPressed: () async {
-                        // Vérifier que les champs ne sont pas vides
-                        if (_usernameController.text.isEmpty ||
-                            _emailController.text.isEmpty ||
-                            _passwordController.text.isEmpty) {
-                          AlertUtils.showError(
-                            context: context,
-                            message: 'Veuillez remplir tous les champs',
-                            debugDetails:
-                                'Tentative d\'inscription avec des champs vides: ' +
-                                'username=${_usernameController.text.isEmpty}, ' +
-                                'email=${_emailController.text.isEmpty}, ' +
-                                'password=${_passwordController.text.isEmpty}, ' +
-                                'phone=${_phoneNumberController.text.isEmpty}',
-                          );
-                          return;
-                        }
-
-                        // Afficher un indicateur de chargement
-                        showDialog(
-                          context: context,
-                          barrierDismissible: false,
-                          builder: (context) =>
-                              const Center(child: CircularProgressIndicator()),
-                        );
-
-                        // Préparer les données d'inscription
-                        final userData = {
-                          'username': _usernameController.text,
-                          'email': _emailController.text,
-                          'phoneNumber': _phoneNumberController.text,
-                          'password': _passwordController.text,
-                        };
-
-                        try {
-                          // Appeler l'API d'inscription
-                          final response = await ApiClient.registerUser(
-                            body: userData,
-                          );
-
-                          // Fermer le dialogue de chargement
-                          Navigator.pop(context);
-
-                          if (response.isSuccess) {
-                            // Afficher un message de succès
-                            AlertUtils.showSuccess(
-                              context: context,
-                              message: 'Inscription réussie !',
-                              debugDetails:
-                                  'Utilisateur inscrit avec succès: ' +
-                                  'username=${_usernameController.text}, ' +
-                                  'email=${_emailController.text}, ' +
-                                  'réponse API=${response.data}',
-                            );
-
-                            // Naviguer vers l'écran de vérification OTP
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    const OtpVerificationScreen(),
-                              ),
-                            );
-                          } else {
-                            // Afficher le message d'erreur
-                            AlertUtils.showError(
-                              context: context,
-                              message:
-                                  response.error ?? 'Erreur d\'inscription',
-                              debugDetails:
-                                  'Échec d\'inscription: ' +
-                                  'username=${_usernameController.text}, ' +
-                                  'email=${_emailController.text}, ' +
-                                  'erreur API=${response.error}',
-                            );
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    const DeviceSelectionScreen(),
-                              ),
-                            );
-                          }
-                        } catch (e) {
-                          // Fermer le dialogue de chargement
-                          Navigator.pop(context);
-
-                          // Afficher l'erreur
-                          AlertUtils.showError(
-                            context: context,
-                            message:
-                                'Une erreur est survenue lors de l\'inscription',
-                            debugDetails:
-                                'Exception lors de l\'inscription: ' +
-                                'username=${_usernameController.text}, ' +
-                                'email=${_emailController.text}, ' +
-                                'exception=$e',
-                          );
-                        }
-                      },
+                      onPressed: _handleRegister,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,
                         foregroundColor: AppColors.white,

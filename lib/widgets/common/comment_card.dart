@@ -9,13 +9,13 @@ class CommentCard extends StatelessWidget {
   final bool isDarkMode;
 
   const CommentCard({
-    Key? key,
+    super.key,
     required this.userName,
     required this.timeAgo,
     required this.comment,
     required this.avatarPath,
     required this.isDarkMode,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../design_system/colors.dart';
 import '../../models/movie_model.dart';
 
 class TrailersVerticalList extends StatelessWidget {
@@ -7,10 +6,10 @@ class TrailersVerticalList extends StatelessWidget {
   final bool isDarkMode;
 
   const TrailersVerticalList({
-    Key? key,
+    super.key,
     required this.trailers,
     required this.isDarkMode,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

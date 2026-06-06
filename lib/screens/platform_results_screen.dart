@@ -1,23 +1,20 @@
 import 'package:flutter/material.dart';
 import '../design_system/colors.dart';
-import '../design_system/spacing.dart';
-import '../design_system/typography.dart';
 import '../widgets/common/movies_grid.dart';
 import '../widgets/common/series_grid.dart';
 import '../models/movie_model.dart';
 import '../models/series_model.dart';
 import '../services/platform_service.dart';
-import '../data/sample_data.dart';
 
 class PlatformResultsScreen extends StatefulWidget {
   final String platformName;
   final String platformDisplayName;
 
   const PlatformResultsScreen({
-    Key? key,
+    super.key,
     required this.platformName,
     required this.platformDisplayName,
-  }) : super(key: key);
+  });
 
   @override
   State<PlatformResultsScreen> createState() => _PlatformResultsScreenState();

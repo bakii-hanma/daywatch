@@ -15,7 +15,7 @@ class BoxOfficeCard extends StatelessWidget {
   final VoidCallback? onTap;
 
   const BoxOfficeCard({
-    Key? key,
+    super.key,
     required this.imagePath,
     required this.title,
     required this.earnings,
@@ -25,7 +25,7 @@ class BoxOfficeCard extends StatelessWidget {
     required this.rank,
     required this.isDarkMode,
     this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

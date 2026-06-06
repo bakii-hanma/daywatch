@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
-import 'dart:io';
-import 'dart:convert';
 import '../design_system/colors.dart';
-import '../widgets/profile/edit_profile_modal.dart';
-import '../widgets/profile/user_info_section.dart';
-import '../widgets/profile/profile_options_section.dart';
+import '../widgets/profile/profile_header.dart';
+import '../widgets/profile/profile_avatar_list.dart';
+import '../widgets/profile/profile_option_group.dart';
+import '../widgets/profile/profile_option_tile.dart';
+import '../widgets/profile/profile_logout_button.dart';
 import '../services/user_storage_service.dart';
-import '../services/api_client.dart';
-import 'login_screen.dart';
+import '../services/profile_service.dart';
+import '../services/device_service.dart';
+import 'devices_screen.dart';
+import 'subscription_screen.dart';
+import 'edit_profile_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({Key? key}) : super(key: key);
+  const ProfileScreen({super.key});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -19,7 +22,13 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? _userData;
   Map<String, dynamic>? _mainProfile;
+  List<dynamic> _profiles = [];
+  int _connectedDevicesCount = 1;
   bool _isLoading = true;
+  
+  // États locaux pour les commutateurs (Wi-Fi et Thème)
+  bool _wifiOnly = false;
+  bool _isDarkTheme = true;
 
   @override
   void initState() {
@@ -32,154 +41,103 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final userData = await UserStorageService.getUserData();
       final mainProfile = await UserStorageService.getMainProfile();
 
+      // Charger d'abord les profils en cache local
+      final actualData = UserStorageService.isUsingMemoryFallback()
+          ? userData
+          : (userData?.containsKey('data') == true ? userData!['data'] : userData);
+      final profilesObj = actualData?['profiles'];
+      
+      List<dynamic> cachedProfiles = [];
+      if (profilesObj != null && profilesObj['data'] != null) {
+        cachedProfiles = profilesObj['data'] as List<dynamic>;
+      }
+
       setState(() {
         _userData = userData;
         _mainProfile = mainProfile;
+        _profiles = cachedProfiles;
         _isLoading = false;
       });
+
+      // Charger les profils en direct
+      final apiResponse = await ProfileService.getUserProfiles();
+      if (apiResponse.isSuccess && apiResponse.data != null) {
+        final List<Map<String, dynamic>> freshProfiles =
+            apiResponse.data!.map((p) => p.toJson()).toList();
+            
+        if (mounted) {
+          setState(() {
+            _profiles = freshProfiles;
+          });
+        }
+      }
+
+      // Charger le nombre d'appareils connectés
+      final devices = await DeviceService.listDevices();
+      final activeDevices = devices.where((d) => d.isConnected).length;
+      if (mounted) {
+        setState(() {
+          _connectedDevicesCount = activeDevices > 0 ? activeDevices : 1;
+        });
+      }
     } catch (e) {
       print('❌ Erreur lors du chargement des données utilisateur: $e');
       setState(() => _isLoading = false);
     }
   }
 
-  Future<void> _showEditProfileModal() async {
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => EditProfileModal(
-        initialUsername:
-            _mainProfile?['profileName'] ?? _userData?['username'] ?? '',
-        currentAvatarUrl: _mainProfile?['profileAvatarUrl'],
-        onSave: _saveProfileChanges,
+  Future<void> _navigateToEditProfile() async {
+    if (_mainProfile == null || _userData == null) return;
+
+    final updated = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EditProfileScreen(
+          profile: _mainProfile!,
+          userData: _userData!,
+        ),
       ),
     );
-  }
 
-  Future<void> _saveProfileChanges(String newUsername, File? newImage) async {
-    try {
-      if (_userData == null || _mainProfile == null) {
-        throw Exception('Données utilisateur manquantes');
-      }
-
-      final Map<String, dynamic> updateData = {
-        'profileId': _mainProfile!['id'],
-      };
-
-      // Nom d'utilisateur
-      if (newUsername.isNotEmpty &&
-          newUsername != _mainProfile!['profileName']) {
-        updateData['profileName'] = newUsername;
-        updateData['username'] = newUsername;
-      }
-
-      // Image
-      if (newImage != null) {
-        final bytes = await newImage.readAsBytes();
-        updateData['profileAvatarBase64'] = base64Encode(bytes);
-        updateData['profileAvatarExtension'] = newImage.path.split('.').last;
-      }
-
-      final token = await UserStorageService.getToken();
-      if (token == null) throw Exception('Token manquant');
-
-      final response = await ApiClient.post<Map<String, dynamic>>(
-        ApiClient.updateProfileUrl,
-        body: updateData,
-        headers: {'Authorization': 'Bearer $token'},
-      );
-
-      if (response.isSuccess) {
-        await _updateLocalData(updateData, response.data, newImage);
-        _showSnackBar('Profil mis à jour avec succès !', Colors.green);
-      } else {
-        throw Exception(response.error ?? 'Erreur de mise à jour');
-      }
-    } catch (e) {
-      _showSnackBar('Erreur: $e', Colors.red);
+    if (updated == true) {
+      _loadUserData();
     }
   }
 
-  Future<void> _updateLocalData(
-    Map<String, dynamic> updateData,
-    Map<String, dynamic>? apiData,
-    File? newImage,
-  ) async {
-    final updatedUserData = Map<String, dynamic>.from(_userData!);
-    final updatedProfile = Map<String, dynamic>.from(_mainProfile!);
-
-    // Mise à jour depuis l'API ou les données locales
-    if (apiData != null) {
-      if (apiData.containsKey('user')) updatedUserData.addAll(apiData['user']);
-      if (apiData.containsKey('profile'))
-        updatedProfile.addAll(apiData['profile']);
-    } else {
-      if (updateData.containsKey('profileName')) {
-        updatedProfile['profileName'] = updateData['profileName'];
-        updatedUserData['username'] = updateData['username'];
-      }
-      if (newImage != null) {
-        updatedProfile['profileAvatarUrl'] =
-            apiData?['profileAvatarUrl'] ?? newImage.path;
-      }
-    }
-
-    // Mise à jour de la liste des profils
-    if (updatedUserData['profiles']?['data'] != null) {
-      final profilesList = List.from(updatedUserData['profiles']['data']);
-      final index = profilesList.indexWhere(
-        (p) => p['id'] == updatedProfile['id'],
-      );
-      if (index != -1) {
-        profilesList[index] = updatedProfile;
-        updatedUserData['profiles']['data'] = profilesList;
-      }
-    }
-
-    await UserStorageService.saveUserData(updatedUserData);
-    setState(() {
-      _userData = updatedUserData;
-      _mainProfile = updatedProfile;
-    });
-  }
-
-  Future<void> _handleLogout() async {
-    final shouldLogout = await showDialog<bool>(
+  void _showPremiumSubscriptionRequiredDialog() {
+    showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Déconnexion'),
-        content: const Text('Êtes-vous sûr de vouloir vous déconnecter ?'),
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: const Text(
+          'Abonnement requis',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: const Text(
+          'La gestion des profils est réservée aux abonnés. Passe à Premium pour en profiter.',
+          style: TextStyle(color: Colors.white70),
+        ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annuler'),
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Annuler', style: TextStyle(color: Colors.white38)),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SubscriptionScreen()),
+              );
+            },
             child: const Text(
-              'Déconnecter',
-              style: TextStyle(color: Colors.red),
+              'Passe à Premium',
+              style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
             ),
           ),
         ],
       ),
     );
-
-    if (shouldLogout == true) {
-      await UserStorageService.logout();
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-        (_) => false,
-      );
-    }
-  }
-
-  void _showSnackBar(String message, Color color) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message), backgroundColor: color));
   }
 
   @override
@@ -203,65 +161,234 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header
-              Text(
-                'Profil',
-                style: TextStyle(
-                  color: textColor,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
+              // EN-TÊTE DE LA PAGE
+              ProfileHeader(textColor: textColor),
+
+              const SizedBox(height: 24),
+
+              // LISTE HORIZONTALE DES PROFILS
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                child: ProfileAvatarList(
+                  profiles: _profiles,
+                  activeProfile: _mainProfile,
+                  onProfileSelected: (profile) async {
+                    await UserStorageService.saveSelectedProfile(profile);
+                    setState(() {
+                      _mainProfile = profile;
+                    });
+                    _loadUserData();
+                  },
+                  isDarkMode: isDarkMode,
+                  textColor: textColor,
+                  backgroundColor: backgroundColor,
                 ),
               ),
 
               const SizedBox(height: 24),
 
-              // Section utilisateur
-              UserInfoSection(
-                userData: _userData,
-                mainProfile: _mainProfile,
-                textColor: textColor,
-                onEditProfile: _showEditProfileModal,
+              // PREMIÈRE BOÎTE D'OPTIONS (Compte & Abonnement)
+              ProfileOptionGroup(
+                children: [
+                  ProfileOptionTile(
+                    icon: Icons.person_outline_rounded,
+                    title: 'Modifier mon profil',
+                    onTap: _navigateToEditProfile,
+                  ),
+                  ProfileOptionTile(
+                    icon: Icons.key_rounded,
+                    title: 'Modifier le mot de passe',
+                    onTap: () {},
+                  ),
+                  ProfileOptionTile(
+                    icon: Icons.workspace_premium_rounded,
+                    title: 'Gérer les profils',
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE50914).withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Text(
+                            'PRINCIPAL',
+                            style: TextStyle(
+                              color: Color(0xFFE50914),
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Icon(Icons.chevron_right_rounded, color: textColor.withOpacity(0.3), size: 20),
+                      ],
+                    ),
+                    onTap: _showPremiumSubscriptionRequiredDialog,
+                  ),
+                  ProfileOptionTile(
+                    icon: Icons.credit_card_rounded,
+                    title: 'Mon abonnement',
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE50914),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Text(
+                            'ESSAI (1J)',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Icon(Icons.chevron_right_rounded, color: textColor.withOpacity(0.3), size: 20),
+                      ],
+                    ),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const SubscriptionScreen()),
+                      );
+                    },
+                  ),
+                  ProfileOptionTile(
+                    icon: Icons.phone_android_rounded,
+                    title: 'Appareils connectés',
+                    showDivider: false,
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF00C853),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '$_connectedDevicesCount',
+                          style: TextStyle(
+                            color: textColor.withOpacity(0.6),
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Icon(Icons.chevron_right_rounded, color: textColor.withOpacity(0.3), size: 20),
+                      ],
+                    ),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const DevicesScreen()),
+                      );
+                    },
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 24),
+
+              // DEUXIÈME BOÎTE D'OPTIONS (Préférences de l'application)
+              ProfileOptionGroup(
+                children: [
+                  ProfileOptionTile(
+                    icon: Icons.wifi_rounded,
+                    title: 'Wi-Fi uniquement',
+                    subtitle: 'Streamer/télécharger seulement en Wi-Fi',
+                    trailing: Switch(
+                      value: _wifiOnly,
+                      activeThumbColor: Colors.white,
+                      activeTrackColor: const Color(0xFFE50914),
+                      inactiveThumbColor: Colors.white70,
+                      inactiveTrackColor: Colors.grey[800],
+                      onChanged: (val) {
+                        setState(() {
+                          _wifiOnly = val;
+                        });
+                      },
+                    ),
+                  ),
+                  ProfileOptionTile(
+                    icon: Icons.dark_mode_outlined,
+                    title: 'Thème sombre',
+                    subtitle: 'Interface en mode sombre',
+                    trailing: Switch(
+                      value: _isDarkTheme,
+                      activeThumbColor: Colors.white,
+                      activeTrackColor: const Color(0xFFE50914),
+                      inactiveThumbColor: Colors.white70,
+                      inactiveTrackColor: Colors.grey[800],
+                      onChanged: (val) {
+                        setState(() {
+                          _isDarkTheme = val;
+                        });
+                      },
+                    ),
+                  ),
+                  ProfileOptionTile(
+                    icon: Icons.share_rounded,
+                    title: 'Partager l\'application',
+                    showDivider: false,
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Partage de l\'application...')),
+                      );
+                    },
+                  ),
+                ],
               ),
 
               const SizedBox(height: 32),
 
-              // Section Options
-              ProfileOptionsSection(
-                isDarkMode: isDarkMode,
-                textColor: textColor,
+              // SECTION AIDE & SUPPORT
+              Text(
+                'AIDE & SUPPORT',
+                style: TextStyle(
+                  color: isDarkMode ? Colors.red : Colors.red.withOpacity(0.8),
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.0,
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              ProfileOptionGroup(
+                children: [
+                  ProfileOptionTile(
+                    icon: Icons.help_outline_rounded,
+                    title: 'FAQ',
+                    onTap: () {},
+                  ),
+                  ProfileOptionTile(
+                    icon: Icons.support_agent_rounded,
+                    title: 'Support technique',
+                    onTap: () {},
+                  ),
+                  ProfileOptionTile(
+                    icon: Icons.info_outline_rounded,
+                    title: 'À propos',
+                    showDivider: false,
+                    onTap: () {},
+                  ),
+                ],
               ),
 
               const SizedBox(height: 40),
 
-              // Bouton de déconnexion
-              _buildLogoutButton(),
+              // BOUTON DE DÉCONNEXION OVALE
+              const ProfileLogoutButton(),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLogoutButton() {
-    return SizedBox(
-      width: double.infinity,
-      height: 50,
-      child: ElevatedButton(
-        onPressed: _handleLogout,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.transparent,
-          side: const BorderSide(color: Colors.red, width: 2),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          elevation: 0,
-        ),
-        child: const Text(
-          'Se déconnecter',
-          style: TextStyle(
-            color: Colors.red,
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
           ),
         ),
       ),

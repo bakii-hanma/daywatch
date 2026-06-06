@@ -3,15 +3,15 @@
 class ServerConfig {
   // ====== SERVEUR API (Radarr, Sonarr, Trailers) ======
   /// URL de base pour l'API (Radarr, Sonarr, Trailers)
-  static const String apiBaseUrl = 'http://192.168.137.1:5000';
+  static const String apiBaseUrl = 'https://api.daywatch.online';
 
   // ====== SERVEUR DE FILMS/STREAMING ======
   /// URL de base pour le serveur de streaming/films
-  static const String streamingBaseUrl = 'http://185.139.230.11';
+  static const String streamingBaseUrl = 'https://api.daywatch.online';
 
   // ====== SERVEUR UTILISATEURS (AUTH) ======
   /// URL de base pour l'API utilisateurs (inscription, connexion)
-  static const String usersApiBaseUrl = 'https://daywatch-api.onrender.com';
+  static const String usersApiBaseUrl = 'https://api.daywatch.online';
 
   // ====== MÉTHODES UTILITAIRES ======
 

@@ -1,139 +1,345 @@
 import '../models/series_model.dart';
+import '../models/movie_model.dart'; // Pour MovieCast et MovieGallery
 import 'api_client.dart';
 
 class SeriesService {
-  /// Test de connectivité avec l'API Sonarr
+  /// Test de connectivité avec l'API Séries
   static Future<bool> testConnection() async {
     try {
-      print('🔗 Test de connexion Sonarr vers ${ApiClient.baseUrl}...');
-      final series = await ApiClient.getRecentSeries<SeriesApiModel>(
-        limit: 1,
-        fromJson: (json) => SeriesApiModel.fromJson(json),
-      );
-      return series.isNotEmpty;
+      final response = await ApiClient.get<dynamic>('/api/series?limit=1');
+      return response.isSuccess;
     } catch (e) {
-      print('❌ Erreur de connexion Sonarr: $e');
       return false;
     }
   }
 
-  /// Diagnostic réseau pour l'API Sonarr
+  /// Diagnostic réseau pour l'API Séries
   static Future<void> diagnoseNetwork() async {
-    print('\n🔍 === DIAGNOSTIC RÉSEAU SONARR ===');
-    print('📍 URL de base: ${ApiClient.baseUrl}');
-    print('🎯 Endpoint: /api/sonarr/series/popular');
-
     try {
-      final isConnected = await testConnection();
-      print(
-        isConnected ? '✅ Connectivité confirmée' : '❌ Test de connexion échoué',
-      );
+      await testConnection();
     } catch (e) {
-      print('❌ Erreur lors du diagnostic: $e');
+      // Ignoré
     }
-    print('=== FIN DIAGNOSTIC ===\n');
   }
 
-  /// Récupération des séries populaires
-  static Future<List<SeriesApiModel>> getPopularSeries({int limit = 10}) async {
-    return _getSeriesWithRetry(
-      () => ApiClient.getPopularSeries<SeriesApiModel>(
-        limit: limit,
-        fromJson: (json) => SeriesApiModel.fromJson(json),
-      ),
-      'séries populaires',
-      limit,
-    );
-  }
-
-  /// Récupération des séries récentes
-  static Future<List<SeriesApiModel>> getRecentSeries({int limit = 10}) async {
-    return _getSeriesWithRetry(
-      () => ApiClient.getRecentSeries<SeriesApiModel>(
-        limit: limit,
-        fromJson: (json) => SeriesApiModel.fromJson(json),
-      ),
-      'séries récentes',
-      limit,
-    );
-  }
-
-  /// Méthode helper avec retry pour récupérer les séries
-  static Future<List<SeriesApiModel>> _getSeriesWithRetry(
-    Future<List<SeriesApiModel>> Function() apiCall,
-    String seriesType,
-    int limit,
-  ) async {
+  /// Helper générique pour récupérer et parser une liste de séries avec retry
+  static Future<List<SeriesApiModel>> _fetchSeriesList(
+    String endpoint, {
+    Duration? timeout,
+  }) async {
     int retryCount = 0;
     const maxRetries = 3;
     const retryDelay = Duration(seconds: 2);
 
     while (retryCount < maxRetries) {
       try {
-        print(
-          '📥 Récupération des $seriesType (tentative ${retryCount + 1}/$maxRetries, limite: $limit)...',
+        final response = await ApiClient.get<dynamic>(
+          endpoint,
+          timeout: timeout ?? ApiClient.seriesTimeout,
         );
 
-        final series = await apiCall();
+        if (response.isSuccess && response.data != null) {
+          List<dynamic> items;
 
-        print('✅ ${series.length} $seriesType récupérées avec succès');
-
-        // Debug : afficher les titres
-        if (series.isNotEmpty) {
-          print('📺 $seriesType récupérées:');
-          for (var serie in series.take(3)) {
-            print(
-              '   - ${serie.title} (${serie.year}) - Note: ${serie.rating}',
-            );
+          // Gérer les formats de réponse directs et enveloppés
+          if (response.data is List) {
+            items = response.data as List<dynamic>;
+          } else if (response.data is Map<String, dynamic>) {
+            final responseMap = response.data as Map<String, dynamic>;
+            if (responseMap['data'] is List) {
+              items = responseMap['data'] as List<dynamic>;
+            } else {
+              return [];
+            }
+          } else {
+            return [];
           }
-          if (series.length > 3) {
-            print('   ... et ${series.length - 3} autres');
+
+          return items.map((item) => SeriesApiModel.fromJson(item)).toList();
+        } else {
+          retryCount++;
+          if (retryCount < maxRetries) {
+            await Future.delayed(retryDelay);
           }
         }
-
-        return series;
       } catch (e) {
         retryCount++;
-        print(
-          '❌ Tentative ${retryCount}/$maxRetries échouée pour $seriesType: $e',
-        );
-
         if (retryCount < maxRetries) {
-          print(
-            '⏳ Nouvelle tentative dans ${retryDelay.inSeconds} secondes...',
-          );
           await Future.delayed(retryDelay);
-        } else {
-          print('❌ Toutes les tentatives échouées pour $seriesType');
-          return [];
         }
       }
     }
     return [];
   }
 
+  /// Récupération de toutes les séries (Liste paginée)
+  /// GET /api/series
+  static Future<List<SeriesApiModel>> getAllSeries({
+    int limit = 2000,
+    bool enrich = false,
+  }) async {
+    return _fetchSeriesList('/api/series?limit=$limit&enrich=$enrich');
+  }
+
+  /// Récupération des séries populaires
+  /// GET /api/series/popular
+  static Future<List<SeriesApiModel>> getPopularSeries({int limit = 20}) async {
+    return _fetchSeriesList('/api/series/popular?limit=$limit');
+  }
+
+  /// Récupération des séries récentes
+  /// GET /api/series/recent
+  static Future<List<SeriesApiModel>> getRecentSeries({int limit = 20}) async {
+    return _fetchSeriesList('/api/series/recent?limit=$limit');
+  }
+
+  /// Récupération des séries recommandées
+  /// GET /api/series/recommended
+  static Future<List<SeriesApiModel>> getRecommendedSeries({
+    int limit = 20,
+  }) async {
+    return _fetchSeriesList('/api/series/recommended?limit=$limit');
+  }
+
+  /// Récupération des séries à venir
+  /// GET /api/series/upcoming
+  static Future<List<SeriesApiModel>> getUpcomingSeries({int limit = 30}) async {
+    return _fetchSeriesList('/api/series/upcoming?limit=$limit');
+  }
+
+  /// Récupération des animés japonais
+  /// GET /api/series/anime
+  static Future<List<SeriesApiModel>> getAnimeSeries({int limit = 50}) async {
+    return _fetchSeriesList('/api/series/anime?limit=$limit');
+  }
+
+  /// Récupération des animés à venir
+  /// GET /api/series/anime/upcoming
+  static Future<List<SeriesApiModel>> getUpcomingAnimes({int limit = 30}) async {
+    return _fetchSeriesList('/api/series/anime/upcoming?limit=$limit');
+  }
+
+  /// Récupération des séries coréennes (K-Drama)
+  /// GET /api/series/k-drama
+  static Future<List<SeriesApiModel>> getKDramaSeries({int limit = 50}) async {
+    return _fetchSeriesList('/api/series/k-drama?limit=$limit');
+  }
+
+  /// Récupération des séries par plateforme
+  /// GET /api/series/platforms/:platform
+  static Future<List<SeriesApiModel>> getSeriesByPlatform(
+    String platform, {
+    int limit = 100,
+    bool includeUnavailable = false,
+  }) async {
+    return _fetchSeriesList(
+      '/api/series/platforms/$platform?limit=$limit&includeUnavailable=$includeUnavailable',
+    );
+  }
+
   /// Récupération d'une série par son ID
+  /// GET /api/series/:id
   static Future<SeriesApiModel?> getSeriesById(String seriesId) async {
     try {
-      print('📥 Récupération de la série ID: $seriesId...');
-
       final response = await ApiClient.getSeriesById<SeriesApiModel>(
         seriesId,
         fromJson: (json) => SeriesApiModel.fromJson(json),
       );
 
       if (response.isSuccess && response.data != null) {
-        final series = response.data!;
-        print('✅ Série récupérée: ${series.title}');
-        return series;
-      } else {
-        print(
-          '❌ Erreur lors de la récupération de la série: ${response.error}',
-        );
-        return null;
+        return response.data!;
       }
+      return null;
     } catch (e) {
-      print('❌ Exception lors de la récupération de la série: $e');
+      return null;
+    }
+  }
+
+  /// Récupération du casting d'une série
+  /// GET /api/series/:id/credits
+  static Future<MovieCast?> getSeriesCredits(
+    String seriesId, {
+    int limit = 30,
+  }) async {
+    try {
+      final response = await ApiClient.get<Map<String, dynamic>>(
+        '/api/series/$seriesId/credits?limit=$limit',
+      );
+      if (response.isSuccess && response.data != null) {
+        final Map<String, dynamic> data = response.data!;
+        final castList = data['data'] ?? data['cast'] ?? [];
+        final crewList = data['crew'] ?? [];
+        return MovieCast.fromJson({
+          'cast': castList,
+          'crew': crewList,
+        });
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Récupération de tous les épisodes d'une série (format simple)
+  /// GET /api/series/:id/episodes
+  static Future<List<EpisodeApiModel>> getSeriesEpisodes(String seriesId) async {
+    return getAllSeriesEpisodes(seriesId: seriesId);
+  }
+
+  /// Récupération des épisodes avec leurs fichiers vidéo
+  /// GET /api/series/:id/episodes-with-files
+  static Future<List<EpisodeApiModel>> getSeriesEpisodesWithFiles(
+    String seriesId, {
+    bool enrich = true,
+  }) async {
+    try {
+      final response = await ApiClient.get<dynamic>(
+        '/api/series/$seriesId/episodes-with-files?enrich=$enrich',
+        timeout: const Duration(seconds: 90),
+      );
+
+      if (response.isSuccess && response.data != null) {
+        List<dynamic> episodesData;
+        if (response.data is List) {
+          episodesData = response.data as List<dynamic>;
+        } else if (response.data is Map<String, dynamic>) {
+          final responseMap = response.data as Map<String, dynamic>;
+          if (responseMap['data'] is List) {
+            episodesData = responseMap['data'] as List<dynamic>;
+          } else {
+            return [];
+          }
+        } else {
+          return [];
+        }
+
+        return episodesData.map((e) => EpisodeApiModel.fromJson(e)).toList();
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /// Récupération des affiches et images d'une série
+  /// GET /api/series/:id/images
+  static Future<MovieGallery?> getSeriesImages(String seriesId) async {
+    try {
+      final response = await ApiClient.get<Map<String, dynamic>>(
+        '/api/series/$seriesId/images',
+      );
+      if (response.isSuccess && response.data != null) {
+        final Map<String, dynamic> data = response.data!;
+        final galleryData = data['data'] ?? {};
+        return MovieGallery.fromJson({
+          'backdrops': galleryData['backdrops'] ?? [],
+          'posters': galleryData['posters'] ?? [],
+        });
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Récupération de la liste des saisons
+  /// GET /api/series/:id/seasons
+  static Future<List<Season>> getSeriesSeasons(String seriesId) async {
+    try {
+      final response = await ApiClient.get<dynamic>(
+        '/api/series/$seriesId/seasons',
+      );
+      if (response.isSuccess && response.data != null) {
+        List<dynamic> items;
+        if (response.data is List) {
+          items = response.data as List<dynamic>;
+        } else if (response.data is Map<String, dynamic> &&
+            response.data['data'] is List) {
+          items = response.data['data'] as List<dynamic>;
+        } else {
+          return [];
+        }
+
+        return items.map((item) {
+          final int number = item['seasonNumber'] ?? 0;
+          final String title = item['name'] ?? 'Saison $number';
+          final bool monitored = item['monitored'] ?? false;
+          final int episodeCount = item['episodeCount'] ?? 0;
+          final int episodeFileCount =
+              item['downloadedEpisodes'] ?? item['episodeFileCount'] ?? 0;
+          final double percentComplete =
+              episodeCount > 0 ? (episodeFileCount / episodeCount) * 100 : 0.0;
+          final String poster = item['posterPath'] ?? item['poster'] ?? '';
+
+          return Season(
+            number: number,
+            title: title,
+            monitored: monitored,
+            episodeCount: episodeCount,
+            episodeFileCount: episodeFileCount,
+            monitoredCount: monitored ? episodeCount : 0,
+            percentComplete: percentComplete,
+            sizeOnDisk: 0,
+            sizeOnDiskGB: 0.0,
+            poster: poster,
+            banner: '',
+            fanart: '',
+          );
+        }).toList();
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /// Récupération des détails d'une saison
+  /// GET /api/series/:id/seasons/:seasonNumber
+  static Future<Map<String, dynamic>?> getSeasonDetail(
+    String seriesId,
+    int seasonNumber,
+  ) async {
+    try {
+      final response = await ApiClient.get<Map<String, dynamic>>(
+        '/api/series/$seriesId/seasons/$seasonNumber',
+      );
+      if (response.isSuccess && response.data != null) {
+        return response.data!['data'] as Map<String, dynamic>?;
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Récupération des trailers/vidéos de la série
+  /// GET /api/series/:id/videos
+  static Future<List<dynamic>> getSeriesVideos(String seriesId) async {
+    try {
+      final response = await ApiClient.get<Map<String, dynamic>>(
+        '/api/series/$seriesId/videos',
+      );
+      if (response.isSuccess && response.data != null) {
+        return response.data!['data'] as List<dynamic>? ?? [];
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /// Récupération des statistiques des séries
+  /// GET /api/series/stats
+  static Future<Map<String, dynamic>?> getSeriesStats() async {
+    try {
+      final response = await ApiClient.get<Map<String, dynamic>>(
+        '/api/series/stats',
+      );
+      if (response.isSuccess && response.data != null) {
+        return response.data!['data'] as Map<String, dynamic>?;
+      }
+      return null;
+    } catch (e) {
       return null;
     }
   }
@@ -141,10 +347,6 @@ class SeriesService {
   /// Récupération d'une série par son ID avec tous ses épisodes inclus
   static Future<SeriesApiModel?> getSeriesWithEpisodes(String seriesId) async {
     try {
-      print(
-        '📥 Récupération de la série ID: $seriesId avec tous ses épisodes...',
-      );
-
       final response = await ApiClient.getSeriesById<SeriesApiModel>(
         seriesId,
         fromJson: (json) => SeriesApiModel.fromJson(json),
@@ -152,18 +354,13 @@ class SeriesService {
 
       if (response.isSuccess && response.data != null) {
         final series = response.data!;
-        print('✅ Série récupérée: ${series.title}');
 
         // Vérifier si les épisodes sont déjà inclus dans la réponse
         if (series.episodesBySeason.isNotEmpty) {
-          print(
-            '📺 Épisodes déjà inclus dans la réponse: ${series.episodesBySeason.length} saisons',
-          );
           return series;
         }
 
         // Si les épisodes ne sont pas inclus, les récupérer séparément
-        print('📥 Récupération des épisodes séparément...');
         final allEpisodes = await getAllSeriesEpisodes(seriesId: seriesId);
 
         if (allEpisodes.isNotEmpty) {
@@ -217,22 +414,14 @@ class SeriesService {
             episodesBySeason: episodesBySeason,
           );
 
-          print(
-            '✅ Série enrichie avec ${allEpisodes.length} épisodes répartis sur ${episodesBySeason.length} saisons',
-          );
           return enrichedSeries;
         } else {
-          print('⚠️ Aucun épisode trouvé pour la série "${series.title}"');
           return series;
         }
       } else {
-        print(
-          '❌ Erreur lors de la récupération de la série: ${response.error}',
-        );
         return null;
       }
     } catch (e) {
-      print('❌ Exception lors de la récupération de la série: $e');
       return null;
     }
   }
@@ -244,14 +433,9 @@ class SeriesService {
     required int episodeNumber,
   }) async {
     try {
-      print(
-        '📥 Récupération de l\'épisode S${seasonNumber}E${episodeNumber} de la série $seriesId...',
-      );
-
       // D'abord récupérer la série avec tous ses épisodes
       final series = await getSeriesWithEpisodes(seriesId);
       if (series == null) {
-        print('❌ Série non trouvée');
         return null;
       }
 
@@ -262,20 +446,11 @@ class SeriesService {
           .firstOrNull;
 
       if (episode != null) {
-        print('✅ Épisode trouvé: ${episode.title}');
-        print('   📁 Fichier: ${episode.file?.fileName ?? 'Non disponible'}');
-        print('   🎬 Qualité: ${episode.getQuality()}');
-        print('   📊 Taille: ${episode.getFileSize()}');
-        print(
-          '   🔗 URL de streaming: ${episode.getStreamUrl() ?? 'Non disponible'}',
-        );
         return episode;
       } else {
-        print('❌ Épisode S${seasonNumber}E${episodeNumber} non trouvé');
         return null;
       }
     } catch (e) {
-      print('❌ Exception lors de la récupération de l\'épisode: $e');
       return null;
     }
   }
@@ -285,141 +460,12 @@ class SeriesService {
     required String seriesId,
     required int seasonNumber,
   }) async {
-    int retryCount = 0;
-    const maxRetries = 3;
-    const retryDelay = Duration(seconds: 2);
-
-    while (retryCount < maxRetries) {
-      try {
-        print(
-          '📥 Récupération des épisodes de la série $seriesId, saison $seasonNumber (tentative ${retryCount + 1}/$maxRetries)...',
-        );
-
-        final endpoint =
-            '/api/sonarr/series/$seriesId/episodes?seasonNumber=$seasonNumber';
-        final response = await ApiClient.get<dynamic>(
-          endpoint,
-          timeout: const Duration(
-            seconds: 45,
-          ), // Timeout plus long pour les épisodes
-        );
-
-        if (response.isSuccess && response.data != null) {
-          List<dynamic> episodesData;
-
-          // Gérer différents formats de réponse
-          if (response.data is List) {
-            // Format direct : liste d'épisodes
-            episodesData = response.data as List<dynamic>;
-            print(
-              '📋 Format de réponse: Liste directe (${episodesData.length} épisodes)',
-            );
-          } else if (response.data is Map<String, dynamic>) {
-            // Format avec wrapper : { success: true, data: [...], message: "..." }
-            final responseMap = response.data as Map<String, dynamic>;
-
-            if (responseMap['data'] is List) {
-              episodesData = responseMap['data'] as List<dynamic>;
-              print(
-                '📋 Format de réponse: Wrapper avec success/data (${episodesData.length} épisodes)',
-              );
-              print('📊 Message: ${responseMap['message'] ?? 'Non spécifié'}');
-              print('📈 Count: ${responseMap['count'] ?? 'Non spécifié'}');
-            } else {
-              print('⚠️ Format de réponse inattendu: Map sans champ data');
-              print('🔍 Clés disponibles: ${responseMap.keys.toList()}');
-              retryCount++;
-              if (retryCount < maxRetries) {
-                await Future.delayed(retryDelay);
-                continue;
-              } else {
-                return [];
-              }
-            }
-          } else {
-            print('⚠️ Format de réponse inattendu pour les épisodes');
-            print('🔍 Type reçu: ${response.data.runtimeType}');
-            retryCount++;
-            if (retryCount < maxRetries) {
-              await Future.delayed(retryDelay);
-              continue;
-            } else {
-              return [];
-            }
-          }
-
-          // Debug : afficher les données brutes du premier épisode
-          if (episodesData.isNotEmpty) {
-            print('🔍 Données brutes du premier épisode:');
-            final firstEpisodeData = episodesData.first;
-            print('   - Type: ${firstEpisodeData.runtimeType}');
-            print(
-              '   - Clés: ${firstEpisodeData is Map ? firstEpisodeData.keys.toList() : 'Non-Map'}',
-            );
-            if (firstEpisodeData is Map) {
-              print('   - hasFile: ${firstEpisodeData['hasFile']}');
-              print('   - file: ${firstEpisodeData['file']}');
-              print('   - episodeFile: ${firstEpisodeData['episodeFile']}');
-            }
-          }
-
-          final List<EpisodeApiModel> episodes = episodesData
-              .map((episode) => EpisodeApiModel.fromJson(episode))
-              .toList();
-
-          print(
-            '✅ ${episodes.length} épisodes récupérés pour la saison $seasonNumber',
-          );
-
-          // Debug : afficher les premiers épisodes
-          if (episodes.isNotEmpty) {
-            print('📺 Épisodes récupérés:');
-            for (var episode in episodes.take(3)) {
-              print('   - Épisode ${episode.episodeNumber}: ${episode.title}');
-              print('     hasFile: ${episode.hasFile}');
-              print('     file: ${episode.file?.fullPath ?? 'null'}');
-              print('     quality: ${episode.getQuality()}');
-              print('     size: ${episode.getFileSize()}');
-            }
-            if (episodes.length > 3) {
-              print('   ... et ${episodes.length - 3} autres');
-            }
-          }
-
-          return episodes;
-        } else {
-          print(
-            '❌ Erreur lors de la récupération des épisodes: ${response.error}',
-          );
-          retryCount++;
-
-          if (retryCount < maxRetries) {
-            print(
-              '⏳ Nouvelle tentative dans ${retryDelay.inSeconds} secondes...',
-            );
-            await Future.delayed(retryDelay);
-          } else {
-            return [];
-          }
-        }
-      } catch (e) {
-        retryCount++;
-        print(
-          '❌ Tentative ${retryCount}/$maxRetries échouée pour les épisodes: $e',
-        );
-
-        if (retryCount < maxRetries) {
-          print(
-            '⏳ Nouvelle tentative dans ${retryDelay.inSeconds} secondes...',
-          );
-          await Future.delayed(retryDelay);
-        } else {
-          print('❌ Toutes les tentatives échouées pour les épisodes');
-          return [];
-        }
-      }
+    try {
+      final allEpisodes = await getAllSeriesEpisodes(seriesId: seriesId);
+      return allEpisodes.where((e) => e.seasonNumber == seasonNumber).toList();
+    } catch (e) {
+      return [];
     }
-    return [];
   }
 
   /// Récupération de tous les épisodes d'une série
@@ -432,11 +478,7 @@ class SeriesService {
 
     while (retryCount < maxRetries) {
       try {
-        print(
-          '📥 Récupération de tous les épisodes de la série $seriesId (tentative ${retryCount + 1}/$maxRetries)...',
-        );
-
-        final endpoint = '/api/sonarr/series/$seriesId/episodes';
+        final endpoint = '/api/series/$seriesId/episodes';
         final response = await ApiClient.get<dynamic>(
           endpoint,
           timeout: const Duration(
@@ -449,25 +491,13 @@ class SeriesService {
 
           // Gérer différents formats de réponse
           if (response.data is List) {
-            // Format direct : liste d'épisodes
             episodesData = response.data as List<dynamic>;
-            print(
-              '📋 Format de réponse: Liste directe (${episodesData.length} épisodes)',
-            );
           } else if (response.data is Map<String, dynamic>) {
-            // Format avec wrapper : { success: true, data: [...], message: "..." }
             final responseMap = response.data as Map<String, dynamic>;
 
             if (responseMap['data'] is List) {
               episodesData = responseMap['data'] as List<dynamic>;
-              print(
-                '📋 Format de réponse: Wrapper avec success/data (${episodesData.length} épisodes)',
-              );
-              print('📊 Message: ${responseMap['message'] ?? 'Non spécifié'}');
-              print('📈 Count: ${responseMap['count'] ?? 'Non spécifié'}');
             } else {
-              print('⚠️ Format de réponse inattendu: Map sans champ data');
-              print('🔍 Clés disponibles: ${responseMap.keys.toList()}');
               retryCount++;
               if (retryCount < maxRetries) {
                 await Future.delayed(retryDelay);
@@ -477,8 +507,6 @@ class SeriesService {
               }
             }
           } else {
-            print('⚠️ Format de réponse inattendu pour tous les épisodes');
-            print('🔍 Type reçu: ${response.data.runtimeType}');
             retryCount++;
             if (retryCount < maxRetries) {
               await Future.delayed(retryDelay);
@@ -492,33 +520,11 @@ class SeriesService {
               .map((episode) => EpisodeApiModel.fromJson(episode))
               .toList();
 
-          print(
-            '✅ ${episodes.length} épisodes récupérés pour la série $seriesId',
-          );
-
-          // Debug : afficher les statistiques par saison
-          final Map<int, int> episodesBySeason = {};
-          for (var episode in episodes) {
-            episodesBySeason[episode.seasonNumber] =
-                (episodesBySeason[episode.seasonNumber] ?? 0) + 1;
-          }
-
-          print('📊 Répartition par saison:');
-          for (var entry in episodesBySeason.entries) {
-            print('   - Saison ${entry.key}: ${entry.value} épisodes');
-          }
-
           return episodes;
         } else {
-          print(
-            '❌ Erreur lors de la récupération de tous les épisodes: ${response.error}',
-          );
           retryCount++;
 
           if (retryCount < maxRetries) {
-            print(
-              '⏳ Nouvelle tentative dans ${retryDelay.inSeconds} secondes...',
-            );
             await Future.delayed(retryDelay);
           } else {
             return [];
@@ -526,17 +532,10 @@ class SeriesService {
         }
       } catch (e) {
         retryCount++;
-        print(
-          '❌ Tentative ${retryCount}/$maxRetries échouée pour tous les épisodes: $e',
-        );
 
         if (retryCount < maxRetries) {
-          print(
-            '⏳ Nouvelle tentative dans ${retryDelay.inSeconds} secondes...',
-          );
           await Future.delayed(retryDelay);
         } else {
-          print('❌ Toutes les tentatives échouées pour tous les épisodes');
           return [];
         }
       }
@@ -544,20 +543,21 @@ class SeriesService {
     return [];
   }
 
-  /// Enrichir une série avec tous ses épisodes
+  /// Enrichir une série avec tous ses épisodes et détails complets
   static Future<SeriesApiModel?> enrichSeriesWithEpisodes({
     required SeriesApiModel series,
   }) async {
     try {
-      print(
-        '🔄 Enrichissement de la série "${series.title}" avec ses épisodes...',
+      // Charger d'abord les détails complets de la série (synopsis, cast, gallery)
+      final fullSeries = await getSeriesById(series.id);
+      final seriesToEnrich = fullSeries ?? series;
+
+      final allEpisodes = await getAllSeriesEpisodes(
+        seriesId: seriesToEnrich.id,
       );
 
-      final allEpisodes = await getAllSeriesEpisodes(seriesId: series.id);
-
       if (allEpisodes.isEmpty) {
-        print('⚠️ Aucun épisode trouvé pour la série "${series.title}"');
-        return series;
+        return seriesToEnrich;
       }
 
       // Organiser les épisodes par saison
@@ -577,45 +577,41 @@ class SeriesService {
         );
       }
 
-      // Créer une nouvelle instance de la série avec les épisodes
+      // Créer une nouvelle instance de la série avec les épisodes et les métadonnées complètes
       final enrichedSeries = SeriesApiModel(
-        id: series.id,
-        tmdbId: series.tmdbId,
-        title: series.title,
-        sortTitle: series.sortTitle,
-        year: series.year,
-        status: series.status,
-        overview: series.overview,
-        network: series.network,
-        airTime: series.airTime,
-        poster: series.poster,
-        banner: series.banner,
-        fanart: series.fanart,
-        rating: series.rating,
-        certification: series.certification,
-        genres: series.genres,
-        runtime: series.runtime,
-        premiered: series.premiered,
-        ended: series.ended,
-        isAvailable: series.isAvailable,
-        monitored: series.monitored,
-        path: series.path,
-        episodeStats: series.episodeStats,
-        seasonInfo: series.seasonInfo,
-        imdbId: series.imdbId,
-        tvdbId: series.tvdbId,
-        tvMazeId: series.tvMazeId,
-        cast: series.cast,
-        gallery: series.gallery,
+        id: seriesToEnrich.id,
+        tmdbId: seriesToEnrich.tmdbId,
+        title: seriesToEnrich.title,
+        sortTitle: seriesToEnrich.sortTitle,
+        year: seriesToEnrich.year,
+        status: seriesToEnrich.status,
+        overview: seriesToEnrich.overview,
+        network: seriesToEnrich.network,
+        airTime: seriesToEnrich.airTime,
+        poster: seriesToEnrich.poster,
+        banner: seriesToEnrich.banner,
+        fanart: seriesToEnrich.fanart,
+        rating: seriesToEnrich.rating,
+        certification: seriesToEnrich.certification,
+        genres: seriesToEnrich.genres,
+        runtime: seriesToEnrich.runtime,
+        premiered: seriesToEnrich.premiered,
+        ended: seriesToEnrich.ended,
+        isAvailable: seriesToEnrich.isAvailable,
+        monitored: seriesToEnrich.monitored,
+        path: seriesToEnrich.path,
+        episodeStats: seriesToEnrich.episodeStats,
+        seasonInfo: seriesToEnrich.seasonInfo,
+        imdbId: seriesToEnrich.imdbId,
+        tvdbId: seriesToEnrich.tvdbId,
+        tvMazeId: seriesToEnrich.tvMazeId,
+        cast: seriesToEnrich.cast,
+        gallery: seriesToEnrich.gallery,
         episodesBySeason: episodesBySeason,
       );
 
-      print(
-        '✅ Série "${series.title}" enrichie avec ${allEpisodes.length} épisodes répartis sur ${episodesBySeason.length} saisons',
-      );
       return enrichedSeries;
     } catch (e) {
-      print('❌ Erreur lors de l\'enrichissement de la série: $e');
       return series; // Retourner la série originale en cas d'erreur
     }
   }
@@ -623,12 +619,9 @@ class SeriesService {
   /// Diagnostic pour un épisode spécifique
   static Future<void> diagnoseEpisode(String seriesId, int episodeId) async {
     try {
-      print('🔍 === DIAGNOSTIC ÉPISODE $episodeId ===');
-
       // Récupérer la série avec tous ses épisodes
       final series = await getSeriesWithEpisodes(seriesId);
       if (series == null) {
-        print('❌ Série non trouvée');
         return;
       }
 
@@ -640,22 +633,8 @@ class SeriesService {
             .firstOrNull;
         if (targetEpisode != null) break;
       }
-
-      if (targetEpisode != null) {
-        print('✅ Épisode $episodeId trouvé: ${targetEpisode.title}');
-        print('   - hasFile: ${targetEpisode.hasFile}');
-        print('   - file: ${targetEpisode.file}');
-        print('   - file?.fullPath: ${targetEpisode.file?.fullPath}');
-        print('   - file?.fileName: ${targetEpisode.file?.fileName}');
-        print('   - getStreamUrl(): ${targetEpisode.getStreamUrl()}');
-        print('   - getFilePath(): ${targetEpisode.getFilePath()}');
-      } else {
-        print('❌ Épisode $episodeId non trouvé');
-      }
-
-      print('=== FIN DIAGNOSTIC ===');
     } catch (e) {
-      print('❌ Erreur lors du diagnostic: $e');
+      // Ignoré
     }
   }
 }
