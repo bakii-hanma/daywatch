@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:flutter/material.dart';
 import '../design_system/colors.dart';
 import '../services/favorite_service.dart';
@@ -8,7 +8,6 @@ import '../models/movie_model.dart';
 import '../models/series_model.dart';
 import '../widgets/common/horizontal_section.dart';
 import '../widgets/common/actor_card.dart';
-import '../widgets/common/comment_card.dart';
 import '../widgets/common/comment_input_field.dart';
 import '../widgets/common/season_card.dart';
 import '../screens/season_detail_screen.dart';
@@ -87,9 +86,22 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen>
         '🔄 Début de l\'enrichissement de la série "${widget.apiSeries!.title}"...',
       );
 
-      final enrichedSeries =
+      // 1. Chercher si la série existe en local dans Sonarr
+      final allSeries = await SeriesService.getAllSeries();
+      SeriesApiModel? localSeries;
+      for (final s in allSeries) {
+        if (s.tmdbId == widget.apiSeries!.tmdbId) {
+          localSeries = s;
+          break;
+        }
+      }
+
+      // 2. Charger les détails complets (via ID local ou ID TMDB)
+      final targetSeries = localSeries ?? widget.apiSeries!;
+
+      var enrichedSeries =
           await SeriesService.enrichSeriesWithEpisodes(
-            series: widget.apiSeries!,
+            series: targetSeries,
           ).timeout(
             const Duration(
               seconds: 120,
@@ -100,11 +112,53 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen>
             },
           );
 
-      if (mounted) {
-        setState(() {
-          _enrichedSeries = enrichedSeries;
-          _isLoadingEpisodes = false;
-        });
+      if (enrichedSeries != null) {
+        // 3. Si des données clés (cast, galerie, saisons) sont absentes, on les récupère en parallèle
+        final needsCast = enrichedSeries.cast == null || enrichedSeries.cast!.cast.isEmpty;
+        final needsGallery = enrichedSeries.gallery == null || 
+            (enrichedSeries.gallery!.backdrops.isEmpty && enrichedSeries.gallery!.posters.isEmpty);
+        final needsSeasons = enrichedSeries.seasonInfo.seasons.isEmpty;
+
+        if (needsCast || needsGallery || needsSeasons) {
+          final results = await Future.wait([
+            needsCast ? SeriesService.getSeriesCredits(enrichedSeries.id) : Future.value(null),
+            needsGallery ? SeriesService.getSeriesImages(enrichedSeries.id) : Future.value(null),
+            needsSeasons ? SeriesService.getSeriesSeasons(enrichedSeries.id) : Future.value(null),
+          ]);
+
+          final castResult = results[0] as MovieCast?;
+          final galleryResult = results[1] as MovieGallery?;
+          final seasonsResult = results[2] as List<Season>?;
+
+          SeasonInfo? newSeasonInfo = enrichedSeries.seasonInfo;
+          if (needsSeasons && seasonsResult != null && seasonsResult.isNotEmpty) {
+            newSeasonInfo = SeasonInfo(
+              totalSeasons: seasonsResult.length,
+              currentSeason: seasonsResult.isNotEmpty ? seasonsResult.last.number : 1,
+              seasons: seasonsResult,
+            );
+          }
+
+          enrichedSeries = enrichedSeries.copyWith(
+            cast: needsCast && castResult != null ? castResult : enrichedSeries.cast,
+            gallery: needsGallery && galleryResult != null ? galleryResult : enrichedSeries.gallery,
+            seasonInfo: newSeasonInfo,
+          );
+        }
+
+        if (mounted) {
+          setState(() {
+            _enrichedSeries = enrichedSeries;
+            _isLoadingEpisodes = false;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _enrichedSeries = widget.apiSeries;
+            _isLoadingEpisodes = false;
+          });
+        }
       }
     } catch (e) {
       print('❌ Erreur lors de l\'enrichissement de la série: $e');
@@ -210,6 +264,46 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen>
     );
   }
 
+  Widget _buildNetworkOrAssetImage(
+    String imagePath, {
+    BoxFit fit = BoxFit.cover,
+    required IconData fallbackIcon,
+    required bool isNetwork,
+  }) {
+    if (isNetwork && (imagePath.startsWith('http://') || imagePath.startsWith('https://'))) {
+      return Image.network(
+        imagePath,
+        fit: fit,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Container(
+            color: Colors.grey[900],
+            child: const Center(
+              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.red),
+            ),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            color: Colors.grey[900],
+            child: Center(
+              child: Icon(fallbackIcon, size: 40, color: Colors.white24),
+            ),
+          );
+        },
+      );
+    } else if (imagePath.isNotEmpty && !imagePath.startsWith('Non disponible') && !imagePath.startsWith('file://')) {
+      return Image.asset(imagePath, fit: fit);
+    } else {
+      return Container(
+        color: Colors.grey[900],
+        child: Center(
+          child: Icon(fallbackIcon, size: 40, color: Colors.white24),
+        ),
+      );
+    }
+  }
+
   Widget _buildHeaderSection(bool isDarkMode) {
     return Column(
       children: [
@@ -220,15 +314,12 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen>
             SizedBox(
               height: 250,
               width: double.infinity,
-              child: _isNetworkImage
-                  ? Image.network(
-                      _bannerPath.isNotEmpty ? _bannerPath : _imagePath,
-                      fit: BoxFit.cover,
-                    )
-                  : Image.asset(
-                      _bannerPath.isNotEmpty ? _bannerPath : _imagePath,
-                      fit: BoxFit.cover,
-                    ),
+              child: _buildNetworkOrAssetImage(
+                _bannerPath.isNotEmpty ? _bannerPath : _imagePath,
+                fit: BoxFit.cover,
+                fallbackIcon: Icons.tv,
+                isNetwork: _isNetworkImage,
+              ),
             ),
 
             // Boutons retour et options en haut
@@ -299,11 +390,16 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen>
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: _isNetworkImage
-                      ? Image.network(_imagePath, fit: BoxFit.cover)
-                      : Image.asset(_imagePath, fit: BoxFit.cover),
+                  child: _buildNetworkOrAssetImage(
+                    _imagePath,
+                    fit: BoxFit.cover,
+                    fallbackIcon: Icons.movie,
+                    isNetwork: _isNetworkImage,
+                  ),
                 ),
               ),
+
+              const SizedBox(width: 16),
 
               const SizedBox(width: 16),
 
@@ -639,7 +735,7 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen>
                     : Text(
                         _overview.isNotEmpty
                             ? _overview
-                            : 'Une série passionnante qui suit les aventures extraordinaires de nos héros à travers différentes saisons. Chaque épisode apporte son lot de surprises et d\'émotions dans un univers riche et captivant.',
+                            : 'Aucun synopsis disponible.',
                         style: TextStyle(
                           color: AppColors.getTextSecondaryColor(isDarkMode),
                           fontSize: 14,
@@ -982,7 +1078,9 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen>
                 title: apiSeason.title.isNotEmpty
                     ? apiSeason.title
                     : 'Saison ${apiSeason.number}',
-                episodes: '${apiSeason.episodeCount} épisodes',
+                episodes: apiSeason.episodeFileCount > 0
+                    ? '▶ ${apiSeason.episodeFileCount}/${apiSeason.episodeCount} éps'
+                    : '${apiSeason.episodeCount} éps • Bientôt',
                 year: _years,
                 rating: _rating,
                 description: _overview.isNotEmpty
@@ -1045,7 +1143,22 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen>
       );
     }
 
-    // Fallback vers les données d'exemple
+    // Fallback ou pas de saisons API
+    if (widget.apiSeries != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Text(
+            'Aucune saison disponible.',
+            style: TextStyle(
+              color: AppColors.getTextSecondaryColor(isDarkMode),
+              fontSize: 14,
+            ),
+          ),
+        ),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
@@ -1082,33 +1195,52 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen>
   }
 
   Widget _buildCommentsTab(bool isDarkMode) {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ...SampleData.comments.map(
-            (comment) => CommentCard(
-              userName: comment.userName,
-              timeAgo: comment.timeAgo,
-              comment: comment.comment,
-              avatarPath: comment.avatarPath,
-              isDarkMode: isDarkMode,
+    return Column(
+      children: [
+        const Expanded(
+          child: Center(
+            child: Padding(
+              padding: EdgeInsets.all(32),
+              child: Text(
+                'Aucun commentaire pour le moment. Soyez le premier à en laisser un !',
+                style: TextStyle(
+                  color: Colors.grey,
+                  fontSize: 14,
+                ),
+                textAlign: TextAlign.center,
+              ),
             ),
           ),
-          const SizedBox(height: 16),
-          CommentInputField(
+        ),
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: CommentInputField(
             isDarkMode: isDarkMode,
             onSend: () {
               // Ajouter commentaire
             },
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
   Widget _buildSimilarTab(bool isDarkMode) {
+    if (widget.apiSeries != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Text(
+            'Aucune série similaire disponible.',
+            style: TextStyle(
+              color: AppColors.getTextSecondaryColor(isDarkMode),
+              fontSize: 14,
+            ),
+          ),
+        ),
+      );
+    }
+
     return SingleChildScrollView(
       child: Padding(
         padding: const EdgeInsets.all(16),

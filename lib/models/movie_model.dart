@@ -1,3 +1,14 @@
+import '../config/server_config.dart';
+
+String _resolveImageUrl(String? url) {
+  if (url == null || url.isEmpty) return '';
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  if (url.startsWith('/')) {
+    return '${ServerConfig.apiBaseUrl}$url';
+  }
+  return url;
+}
+
 // Fonction utilitaire pour convertir en double de manière sûre
 double? _toDouble(dynamic value) {
   if (value == null) return null;
@@ -5,6 +16,14 @@ double? _toDouble(dynamic value) {
   if (value is int) return value.toDouble();
   if (value is String) return double.tryParse(value);
   return null;
+}
+
+int _toInt(dynamic value) {
+  if (value == null) return 0;
+  if (value is int) return value;
+  if (value is double) return value.toInt();
+  if (value is String) return int.tryParse(value) ?? 0;
+  return 0;
 }
 
 // Extrait poster/backdrop/banner quel que soit le format (tableau Radarr ou objet normalisé)
@@ -15,9 +34,9 @@ MovieImages _parseImages(dynamic raw) {
   if (raw is Map) {
     if (!raw.containsKey('coverType')) {
       return MovieImages(
-        poster: raw['poster'] as String?,
-        backdrop: raw['backdrop'] as String?,
-        banner: raw['banner'] as String?,
+        poster: _resolveImageUrl(raw['poster'] as String?),
+        backdrop: _resolveImageUrl(raw['backdrop'] as String?),
+        banner: _resolveImageUrl(raw['banner'] as String?),
       );
     }
   }
@@ -38,7 +57,11 @@ MovieImages _parseImages(dynamic raw) {
         banner = url;
       }
     }
-    return MovieImages(poster: poster, backdrop: backdrop, banner: banner);
+    return MovieImages(
+      poster: _resolveImageUrl(poster),
+      backdrop: _resolveImageUrl(backdrop),
+      banner: _resolveImageUrl(banner),
+    );
   }
 
   return const MovieImages();
@@ -250,7 +273,7 @@ class SeasonModel {
 
 // Nouveau modèle pour l'API Radarr
 class MovieApiModel {
-  final int id;
+  final String id;
   final int tmdbId;
   final String title;
   final String originalTitle;
@@ -279,6 +302,7 @@ class MovieApiModel {
   final MovieGallery? gallery;
   final MovieBoxOffice? boxOffice;
   final int? boxOfficeRank;
+  final String? tagline;
 
   const MovieApiModel({
     required this.id,
@@ -310,6 +334,7 @@ class MovieApiModel {
     this.gallery,
     this.boxOffice,
     this.boxOfficeRank,
+    this.tagline,
   });
 
   factory MovieApiModel.fromJson(Map<String, dynamic> json) {
@@ -383,17 +408,17 @@ class MovieApiModel {
         : <String>[];
 
     return MovieApiModel(
-      id: json['id'] ?? 0,
-      tmdbId: json['tmdbId'] ?? 0,
+      id: json['id']?.toString() ?? '0',
+      tmdbId: _toInt(json['tmdbId']),
       title: json['title'] ?? '',
       originalTitle: json['originalTitle'] ?? '',
       overview: json['overview'] ?? '',
-      year: json['year'] ?? 0,
+      year: _toInt(json['year']),
       rating: rating,
       imdbRating: imdbRating,
       tmdbRating: tmdbRating,
       popularity: _toDouble(json['popularity']) ?? 0.0,
-      runtime: json['runtime'] ?? 0,
+      runtime: _toInt(json['runtime']),
       certification: json['certification']?.toString(),
       isAvailable: json['isAvailable'] ?? json['hasFile'] ?? false,
       downloaded: json['downloaded'] ?? json['hasFile'] ?? false,
@@ -421,7 +446,8 @@ class MovieApiModel {
       boxOffice: json['boxOffice'] != null && json['boxOffice'] is Map
           ? MovieBoxOffice.fromJson(json['boxOffice'] as Map<String, dynamic>)
           : null,
-      boxOfficeRank: json['boxOfficeRank'],
+      boxOfficeRank: json['boxOfficeRank'] != null ? _toInt(json['boxOfficeRank']) : null,
+      tagline: json['tagline']?.toString(),
     );
   }
 
@@ -460,7 +486,74 @@ class MovieApiModel {
       'gallery': gallery?.toJson(),
       'boxOffice': boxOffice?.toJson(),
       'boxOfficeRank': boxOfficeRank,
+      'tagline': tagline,
     };
+  }
+
+  MovieApiModel copyWith({
+    String? id,
+    int? tmdbId,
+    String? title,
+    String? originalTitle,
+    String? overview,
+    int? year,
+    double? rating,
+    double? imdbRating,
+    double? tmdbRating,
+    double? popularity,
+    int? runtime,
+    String? certification,
+    bool? isAvailable,
+    bool? downloaded,
+    bool? monitored,
+    MovieImages? images,
+    ExtendedMovieMediaInfo? mediaInfo,
+    MovieReleaseInfo? releaseInfo,
+    List<String>? genres,
+    String? studio,
+    String? website,
+    String? youTubeTrailerId,
+    MovieCollection? collection,
+    List<String>? tags,
+    List<SimilarMovie>? similarMovies,
+    MovieCast? cast,
+    MovieGallery? gallery,
+    MovieBoxOffice? boxOffice,
+    int? boxOfficeRank,
+    String? tagline,
+  }) {
+    return MovieApiModel(
+      id: id ?? this.id,
+      tmdbId: tmdbId ?? this.tmdbId,
+      title: title ?? this.title,
+      originalTitle: originalTitle ?? this.originalTitle,
+      overview: overview ?? this.overview,
+      year: year ?? this.year,
+      rating: rating ?? this.rating,
+      imdbRating: imdbRating ?? this.imdbRating,
+      tmdbRating: tmdbRating ?? this.tmdbRating,
+      popularity: popularity ?? this.popularity,
+      runtime: runtime ?? this.runtime,
+      certification: certification ?? this.certification,
+      isAvailable: isAvailable ?? this.isAvailable,
+      downloaded: downloaded ?? this.downloaded,
+      monitored: monitored ?? this.monitored,
+      images: images ?? this.images,
+      mediaInfo: mediaInfo ?? this.mediaInfo,
+      releaseInfo: releaseInfo ?? this.releaseInfo,
+      genres: genres ?? this.genres,
+      studio: studio ?? this.studio,
+      website: website ?? this.website,
+      youTubeTrailerId: youTubeTrailerId ?? this.youTubeTrailerId,
+      collection: collection ?? this.collection,
+      tags: tags ?? this.tags,
+      similarMovies: similarMovies ?? this.similarMovies,
+      cast: cast ?? this.cast,
+      gallery: gallery ?? this.gallery,
+      boxOffice: boxOffice ?? this.boxOffice,
+      boxOfficeRank: boxOfficeRank ?? this.boxOfficeRank,
+      tagline: tagline ?? this.tagline,
+    );
   }
 
   // Méthode pour parser les données essentielles (nouvelle structure)
@@ -504,8 +597,8 @@ class MovieApiModel {
     }
 
     return MovieApiModel(
-      id: json['id'] ?? 0,
-      tmdbId: json['tmdbId'] ?? 0,
+      id: json['id']?.toString() ?? '0',
+      tmdbId: _toInt(json['tmdbId']),
       title: json['title'] ?? '',
       originalTitle: json['originalTitle'] ?? '',
       overview: '', // Pas d'overview dans les données essentielles
@@ -535,6 +628,7 @@ class MovieApiModel {
       gallery: null,
       boxOffice: null,
       boxOfficeRank: null,
+      tagline: json['tagline']?.toString(),
     );
   }
 
@@ -714,7 +808,7 @@ class MovieCollection {
   factory MovieCollection.fromJson(Map<String, dynamic> json) {
     return MovieCollection(
       title: json['title'] ?? '',
-      tmdbId: json['tmdbId'] ?? 0,
+      tmdbId: _toInt(json['tmdbId']),
     );
   }
 
@@ -766,10 +860,10 @@ class CastMember {
 
   factory CastMember.fromJson(Map<String, dynamic> json) {
     return CastMember(
-      id: json['id'] ?? 0,
+      id: _toInt(json['id']),
       name: json['name'] ?? '',
       character: json['character'] ?? '',
-      order: json['order'] ?? 0,
+      order: _toInt(json['order']),
       profilePath: json['profilePath'],
       popularity: _toDouble(json['popularity']) ?? 0.0,
     );
@@ -802,7 +896,7 @@ class CrewMember {
 
   factory CrewMember.fromJson(Map<String, dynamic> json) {
     return CrewMember(
-      id: json['id'] ?? 0,
+      id: _toInt(json['id']),
       name: json['name'] ?? '',
       job: json['job'] ?? '',
       department: json['department'] ?? '',
@@ -845,11 +939,11 @@ class SimilarMovie {
 
   factory SimilarMovie.fromJson(Map<String, dynamic> json) {
     return SimilarMovie(
-      id: json['id'] ?? 0,
+      id: _toInt(json['id']),
       title: json['title'] ?? '',
       originalTitle: json['originalTitle'] ?? '',
       overview: json['overview'] ?? '',
-      year: json['year'] ?? 0,
+      year: _toInt(json['year']),
       rating: _toDouble(json['rating']) ?? 0.0,
       popularity: _toDouble(json['popularity']) ?? 0.0,
       poster: json['poster'],
@@ -910,11 +1004,11 @@ class MovieBoxOffice {
 
   factory MovieBoxOffice.fromJson(Map<String, dynamic> json) {
     return MovieBoxOffice(
-      budget: json['budget'] ?? 0,
-      revenue: json['revenue'] ?? 0,
-      profit: json['profit'] ?? 0,
+      budget: _toInt(json['budget']),
+      revenue: _toInt(json['revenue']),
+      profit: _toInt(json['profit']),
       roi: _toDouble(json['roi']) ?? 0.0,
-      profitMargin: json['profitMargin'] ?? 0,
+      profitMargin: _toInt(json['profitMargin']),
     );
   }
 
@@ -947,8 +1041,8 @@ class GalleryImage {
   factory GalleryImage.fromJson(Map<String, dynamic> json) {
     return GalleryImage(
       filePath: json['filePath'] ?? '',
-      width: json['width'] ?? 0,
-      height: json['height'] ?? 0,
+      width: _toInt(json['width']),
+      height: _toInt(json['height']),
       aspectRatio: _toDouble(json['aspectRatio']) ?? 1.0,
       voteAverage: _toDouble(json['voteAverage']) ?? 0.0,
       language: json['language'],
@@ -1082,7 +1176,7 @@ class QualityDetails {
   factory QualityDetails.fromJson(Map<String, dynamic> json) {
     return QualityDetails(
       name: json['name'] ?? '',
-      resolution: json['resolution'] ?? 0,
+      resolution: _toInt(json['resolution']),
       source: json['source'] ?? '',
     );
   }
@@ -1159,7 +1253,7 @@ class Language {
   const Language({required this.id, required this.name});
 
   factory Language.fromJson(Map<String, dynamic> json) {
-    return Language(id: json['id'] ?? 0, name: json['name'] ?? '');
+    return Language(id: _toInt(json['id']), name: json['name'] ?? '');
   }
 
   Map<String, dynamic> toJson() => {

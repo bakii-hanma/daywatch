@@ -1,16 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:shimmer/shimmer.dart';
 import '../design_system/colors.dart';
-import '../design_system/spacing.dart';
 import '../design_system/typography.dart';
-import '../widgets/common/horizontal_section.dart';
-import '../widgets/common/tv_channel_card.dart';
-import '../widgets/common/live_match_card.dart';
-import '../widgets/common/replay_card.dart';
 import '../models/tv_channel_model.dart';
 import '../services/tv_channel_service.dart';
-import 'tv_channels_screen.dart';
-import 'live_matches_screen.dart';
-import 'replays_screen.dart';
+import 'simple_tv_player_screen.dart';
 
 class LiveTvScreen extends StatefulWidget {
   const LiveTvScreen({super.key});
@@ -20,19 +14,38 @@ class LiveTvScreen extends StatefulWidget {
 }
 
 class _LiveTvScreenState extends State<LiveTvScreen> {
-  final List<String> posterImages = [
-    'assets/poster/304002ec328ad17a89f9c1df6cf8c782947ff218.jpg',
-    'assets/poster/3fb13cb9a2be12d3257ebc49f50c0c193be46dec.jpg',
-    'assets/poster/4e4a3cc015940574343120069e05287e1c336646.jpg',
-    'assets/poster/5ed7e48d341cf2480085a445b6486dbd9964e1c9.jpg',
-    'assets/poster/7b34871fae5b7f45aa181d008eed6283e8596fa7.jpg',
-    'assets/poster/a540bacb454d0bcc68204ff72c60210d17f9679f.jpg',
-    'assets/poster/d88c27338531793104f79107f3fdf1722a0e9fdc.jpg',
-    'assets/poster/ee95c8d574be76182adb5fd79675435e550090e2.jpg',
-  ];
+  List<TvChannelModel> _allChannels = [];
+  List<TvChannelModel> _displayedChannels = [];
+  bool _isLoading = true;
 
-  List<TvChannelModel> tvChannels = [];
-  bool isLoadingChannels = true;
+  String _activeTabId = 'all';
+  String _searchQuery = '';
+  bool _showSearch = false;
+
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
+
+  // Mots-clés identiques à l'application Web pour le filtrage par catégories
+  static const Map<String, List<String>> _categoryKeywords = {
+    'sport': ['sport', 'bein', 'espn', 'fox sport', 'eurosport', 'rmc', 'sky sport', 'nfl', 'nba', 'golf', 'bt sport', 'dazn'],
+    'info': ['news', 'cnn', 'bbc', 'jt', 'sky news', 'al jazeera', 'france 24', 'euronews', 'bfm', 'cnews', 'franceinfo', 'dw', 'africa24', 'reuters', 'bloomberg', 'fox news', 'cbc', 'rt '],
+    'jeunesse': ['kids', 'cartoon', 'disney', 'nick', 'enfant', 'gulli', 'tiji', 'boomerang', 'junior'],
+    'divertissement': ['entertainment', 'comedy', 'tlc', 'paramount', 'tf1', 'm6', 'tmc', 'amc', 'syfy', 'hbo', 'showtime', 'bravo'],
+    'musique': ['music', 'musique', 'mtv', 'trace', 'mezzo', 'mcm', 'vh1'],
+    'style': ['lifestyle', 'travel', 'cuisine', 'food', 'national geographic', 'discovery', 'animal', 'history'],
+    'gabon': ['gabon', 'gabonaise', 'gabon 24', 'rtg'],
+  };
+
+  final List<Map<String, String>> _categories = [
+    {'id': 'all', 'label': 'Tout'},
+    {'id': 'sport', 'label': 'Sport'},
+    {'id': 'info', 'label': 'Info'},
+    {'id': 'jeunesse', 'label': 'Jeunesse'},
+    {'id': 'divertissement', 'label': 'Divertissement'},
+    {'id': 'musique', 'label': 'Musique'},
+    {'id': 'style', 'label': 'Style de vie'},
+    {'id': 'gabon', 'label': 'Gabon'},
+  ];
 
   @override
   void initState() {
@@ -40,58 +53,454 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
     _loadChannels();
   }
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _searchFocusNode.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadChannels() async {
     try {
-      final channels = await TvChannelService.getHomeChannels(limit: 8);
       setState(() {
-        tvChannels = channels;
-        isLoadingChannels = false;
+        _isLoading = true;
       });
+
+      // Récupérer un grand nombre de chaînes pour la liste complète
+      final channels = await TvChannelService.getAllChannels(page: 1, limit: 500);
+
+      if (mounted) {
+        setState(() {
+          _allChannels = channels;
+          _isLoading = false;
+        });
+        _filterChannels();
+      }
     } catch (e) {
       print('Erreur lors du chargement des chaînes: $e');
-      setState(() {
-        isLoadingChannels = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
-  final List<Map<String, String>> liveMatches = [
-    {
-      'team1': 'PSG',
-      'team2': 'Real Madrid',
-      'time': '21:00',
-      'sport': 'Football',
-    },
-    {
-      'team1': 'Lakers',
-      'team2': 'Warriors',
-      'time': '02:30',
-      'sport': 'Basketball',
-    },
-    {'team1': 'France', 'team2': 'Italie', 'time': '18:45', 'sport': 'Rugby'},
-    {
-      'team1': 'Chelsea',
-      'team2': 'Arsenal',
-      'time': '16:00',
-      'sport': 'Football',
-    },
-    {'team1': 'Federer', 'team2': 'Nadal', 'time': '14:30', 'sport': 'Tennis'},
-    {
-      'team1': 'Celtics',
-      'team2': 'Heat',
-      'time': '01:00',
-      'sport': 'Basketball',
-    },
-  ];
+  void _filterChannels() {
+    setState(() {
+      _displayedChannels = _allChannels.where((channel) {
+        // 1. Filtrage par Catégorie (Chips)
+        bool matchesCategory = true;
+        if (_activeTabId != 'all') {
+          final keywords = _categoryKeywords[_activeTabId] ?? [];
+          final blob = '${channel.name} ${channel.category}'.toLowerCase();
+          matchesCategory = keywords.any((k) => blob.contains(k));
+        }
 
-  final List<String> replayTitles = [
-    'PSG vs Marseille - Classique',
-    'Tennis Roland Garros - Finale',
-    'NBA Finals - Lakers vs Celtics',
-    'Formule 1 - Grand Prix Monaco',
-    'Champions League - Bayern vs City',
-    'Rugby World Cup - France vs All Blacks',
-  ];
+        // 2. Filtrage par Barre de Recherche
+        bool matchesSearch = true;
+        if (_searchQuery.isNotEmpty) {
+          final query = _searchQuery.toLowerCase();
+          matchesSearch = channel.name.toLowerCase().contains(query) ||
+              channel.category.toLowerCase().contains(query);
+        }
+
+        return matchesCategory && matchesSearch;
+      }).toList();
+    });
+  }
+
+
+
+  Widget _buildHeader(Color textColor, bool isDarkMode) {
+    if (_showSearch) {
+      return Container(
+        height: 56,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Row(
+          children: [
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.1),
+                  ),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.search_rounded,
+                      color: textColor.withOpacity(0.6),
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        focusNode: _searchFocusNode,
+                        autofocus: true,
+                        style: TextStyle(color: textColor, fontSize: 14),
+                        decoration: const InputDecoration(
+                          hintText: 'Rechercher une chaîne...',
+                          hintStyle: TextStyle(color: Colors.white38, fontSize: 14),
+                          border: InputBorder.none,
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(vertical: 8),
+                        ),
+                        onChanged: (val) {
+                          setState(() {
+                            _searchQuery = val;
+                          });
+                          _filterChannels();
+                        },
+                      ),
+                    ),
+                    if (_searchQuery.isNotEmpty)
+                      GestureDetector(
+                        onTap: () {
+                          _searchController.clear();
+                          setState(() {
+                            _searchQuery = '';
+                          });
+                          _filterChannels();
+                        },
+                        child: Icon(
+                          Icons.clear_rounded,
+                          color: textColor.withOpacity(0.6),
+                          size: 20,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            GestureDetector(
+              onTap: () {
+                _searchController.clear();
+                _searchFocusNode.unfocus();
+                setState(() {
+                  _showSearch = false;
+                  _searchQuery = '';
+                });
+                _filterChannels();
+              },
+              child: Text(
+                'Annuler',
+                style: TextStyle(
+                  color: AppColors.primary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      height: 56,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Text(
+                'TV en direct',
+                style: AppTypography.header(textColor),
+              ),
+              if (_activeTabId != 'all') ...[
+                const SizedBox(width: 8),
+                Text(
+                  ': ${_categories.firstWhere((cat) => cat['id'] == _activeTabId)['label']}',
+                  style: TextStyle(
+                    color: AppColors.primary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          GestureDetector(
+            onTap: () {
+              setState(() {
+                _showSearch = true;
+              });
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _searchFocusNode.requestFocus();
+              });
+            },
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.08),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.search_rounded,
+                color: textColor,
+                size: 20,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCategoryChips(Color textColor, bool isDarkMode) {
+    return Container(
+      height: 40,
+      margin: const EdgeInsets.only(bottom: 12, top: 4),
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: _categories.length,
+        itemBuilder: (context, index) {
+          final cat = _categories[index];
+          final catId = cat['id']!;
+          final catLabel = cat['label']!;
+          final isActive = _activeTabId == catId;
+
+          return GestureDetector(
+            onTap: () {
+              setState(() {
+                _activeTabId = catId;
+              });
+              _filterChannels();
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              margin: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: isActive 
+                    ? AppColors.primary 
+                    : Colors.white.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: isActive ? [
+                  BoxShadow(
+                    color: AppColors.primary.withOpacity(0.4),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  )
+                ] : null,
+              ),
+              child: Center(
+                child: Text(
+                  catLabel,
+                  style: TextStyle(
+                    color: isActive ? Colors.white : textColor.withOpacity(0.7),
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildChannelList(bool isDarkMode) {
+    return ListView.separated(
+      padding: const EdgeInsets.only(bottom: 100),
+      itemCount: _displayedChannels.length,
+      separatorBuilder: (context, index) => Divider(
+        color: Colors.white.withOpacity(0.06),
+        height: 1,
+        indent: 16,
+        endIndent: 16,
+      ),
+      itemBuilder: (context, index) {
+        final channel = _displayedChannels[index];
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => SimpleTvPlayerScreen(channel: channel),
+                  fullscreenDialog: true,
+                ),
+              );
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          channel.name,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          channel.category.isNotEmpty ? channel.category : 'Chaîne en direct',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.6),
+                            fontSize: 12,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 6,
+                          height: 6,
+                          decoration: const BoxDecoration(
+                            color: AppColors.primary,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'DIRECT',
+                          style: TextStyle(
+                            color: AppColors.primary,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildShimmerList(bool isDarkMode) {
+    final baseColor = isDarkMode ? Colors.grey[900]! : Colors.grey[300]!;
+    final highlightColor = isDarkMode ? Colors.grey[850]! : Colors.grey[100]!;
+
+    return Shimmer.fromColors(
+      baseColor: baseColor,
+      highlightColor: highlightColor,
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        itemCount: 10,
+        separatorBuilder: (context, index) => Divider(
+          color: Colors.white.withOpacity(0.06),
+          height: 1,
+          indent: 16,
+          endIndent: 16,
+        ),
+        itemBuilder: (context, index) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 120,
+                        height: 14,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        width: 80,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  width: 60,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(Color textColor, bool isDarkMode) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.tv_off_rounded,
+              size: 64,
+              color: textColor.withOpacity(0.3),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Aucune chaîne',
+              style: TextStyle(
+                color: textColor,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _searchQuery.isNotEmpty
+                  ? 'Aucun résultat pour "$_searchQuery"'
+                  : 'Aucune chaîne disponible dans cette catégorie.',
+              style: TextStyle(
+                color: textColor.withOpacity(0.5),
+                fontSize: 14,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -102,250 +511,18 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
     return Scaffold(
       backgroundColor: backgroundColor,
       body: SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header moderne
-              Container(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('DIRECT', style: AppTypography.header(textColor)),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Regardez en direct ou en replay',
-                          style: AppTypography.body(textColor.withOpacity(0.7)),
-                        ),
-                      ],
-                    ),
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: AppColors.getSurfaceColor(isDarkMode),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Icon(
-                            Icons.search_rounded,
-                            color: textColor,
-                            size: 20,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: AppColors.getSurfaceColor(isDarkMode),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Icon(
-                            Icons.notifications_outlined,
-                            color: textColor,
-                            size: 20,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
-              // Section En direct maintenant (Hero section)
-              Container(
-                margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      AppColors.primary.withOpacity(0.1),
-                      AppColors.primary.withOpacity(0.05),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: AppColors.primary.withOpacity(0.2),
-                    width: 1,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: const Text(
-                              '🔴 EN DIRECT',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'PSG vs Real Madrid',
-                            style: AppTypography.title(textColor),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Champions League • 21:00',
-                            style: AppTypography.body(
-                              textColor.withOpacity(0.7),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          ElevatedButton.icon(
-                            onPressed: () {},
-                            icon: const Icon(Icons.play_arrow, size: 18),
-                            label: const Text('Regarder'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.primary,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 8,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Image.asset(
-                        posterImages[0],
-                        width: 80,
-                        height: 100,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: AppSpacing.xl),
-
-              // Section Chaînes TV avec HorizontalSection
-              isLoadingChannels
-                  ? Container(
-                      height: 260,
-                      padding: const EdgeInsets.all(16),
-                      child: const Center(child: CircularProgressIndicator()),
-                    )
-                  : HorizontalSection<TvChannelModel>(
-                      title: 'Chaînes TV',
-                      items: tvChannels,
-                      itemWidth: 160,
-                      sectionHeight: 260,
-                      isDarkMode: isDarkMode,
-                      onSeeMoreTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const TvChannelsScreen(),
-                          ),
-                        );
-                      },
-                      itemBuilder: (channel, index) {
-                        return TvChannelCard(
-                          channel: channel,
-                          onTap: () {
-                            // Action de sélection de chaîne
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Ouverture de ${channel.name}'),
-                                backgroundColor: AppColors.primary,
-                              ),
-                            );
-                          },
-                        );
-                      },
-                    ),
-
-              const SizedBox(height: AppSpacing.xl),
-
-              // Section Matchs en direct avec HorizontalSection
-              HorizontalSection<Map<String, String>>(
-                title: 'Matchs en direct',
-                items: liveMatches,
-                itemWidth: 300,
-                sectionHeight: 140,
-                isDarkMode: isDarkMode,
-                onSeeMoreTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const LiveMatchesScreen(),
-                    ),
-                  );
-                },
-                itemBuilder: (match, index) {
-                  return LiveMatchCard(
-                    team1: match['team1']!,
-                    team2: match['team2']!,
-                    time: match['time']!,
-                    sport: match['sport']!,
-                    imagePath: posterImages[index % posterImages.length],
-                    onTap: () {
-                      // Action de lecture du match
-                    },
-                  );
-                },
-              ),
-
-              const SizedBox(height: AppSpacing.xl),
-
-              // Section Replay avec HorizontalSection style
-              HorizontalSection<String>(
-                title: 'Replay disponibles',
-                items: replayTitles,
-                itemWidth: 160,
-                sectionHeight: 260,
-                isDarkMode: isDarkMode,
-                onSeeMoreTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const ReplaysScreen(),
-                    ),
-                  );
-                },
-                itemBuilder: (title, index) {
-                  return ReplayCard(
-                    title: title,
-                    imagePath: posterImages[index % posterImages.length],
-                    onTap: () {
-                      // Action de lecture du replay
-                    },
-                  );
-                },
-              ),
-
-              const SizedBox(height: 100), // Espace pour la bottom navigation
-            ],
-          ),
+        child: Column(
+          children: [
+            _buildHeader(textColor, isDarkMode),
+            if (!_showSearch) _buildCategoryChips(textColor, isDarkMode),
+            Expanded(
+              child: _isLoading
+                  ? _buildShimmerList(isDarkMode)
+                  : _displayedChannels.isEmpty
+                      ? _buildEmptyState(textColor, isDarkMode)
+                      : _buildChannelList(isDarkMode),
+            ),
+          ],
         ),
       ),
     );

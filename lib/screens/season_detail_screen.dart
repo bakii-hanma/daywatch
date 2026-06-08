@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -463,7 +463,9 @@ class _SeasonDetailScreenState extends State<SeasonDetailScreen>
 
     if (episode.hasFile && videoPath.isNotEmpty) {
       // Construire l'URL complète avec le préfixe du serveur
-      final videoUrl = ServerConfig.getStreamingUrl(videoPath);
+      final videoUrl = ServerConfig.getApiUrl(
+        '/api/sonarr/series/${episode.seriesId}/seasons/${episode.seasonNumber}/episodes/${episode.episodeNumber}/stream',
+      );
 
       print('🎬 Lancement du lecteur avec URL: $videoUrl');
 
@@ -895,79 +897,64 @@ class _SeasonDetailScreenState extends State<SeasonDetailScreen>
     );
   }
 
+  Widget _buildNetworkOrAssetImage(
+    String imagePath, {
+    BoxFit fit = BoxFit.cover,
+    required IconData fallbackIcon,
+  }) {
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+      return Image.network(
+        imagePath,
+        fit: fit,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Container(
+            color: Colors.grey[900],
+            child: const Center(
+              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.red),
+            ),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            color: Colors.grey[900],
+            child: Center(
+              child: Icon(fallbackIcon, size: 40, color: Colors.white24),
+            ),
+          );
+        },
+      );
+    } else if (imagePath.isNotEmpty && !imagePath.startsWith('Non disponible') && !imagePath.startsWith('file://')) {
+      return Image.asset(imagePath, fit: fit);
+    } else {
+      return Container(
+        color: Colors.grey[900],
+        child: Center(
+          child: Icon(fallbackIcon, size: 40, color: Colors.white24),
+        ),
+      );
+    }
+  }
+
   Widget _buildSeasonImage() {
     // Prioriser explicitement le fanart pour l'image de fond
     String backgroundImage;
 
-    print('🎬 Saison ${widget.season.title}:');
-    print('   🖼️ Fanart: ${widget.season.fanart ?? "Non disponible"}');
-    print('   🎭 Banner: ${widget.season.banner ?? "Non disponible"}');
-    print('   📸 Poster: ${widget.season.poster ?? "Non disponible"}');
-    print('   📷 ImagePath: ${widget.season.imagePath}');
-
-    // Prioriser le fanart en premier pour l'image de fond
     if (widget.season.fanart != null && widget.season.fanart!.isNotEmpty) {
       backgroundImage = widget.season.fanart!;
-      print('   ✅ Utilisation du FANART comme image de fond: $backgroundImage');
     } else if (widget.season.banner != null &&
         widget.season.banner!.isNotEmpty) {
       backgroundImage = widget.season.banner!;
-      print('   ✅ Utilisation du BANNER comme image de fond: $backgroundImage');
     } else {
       backgroundImage = widget.season.imagePath;
-      print(
-        '   ✅ Utilisation de l\'IMAGE PATH comme image de fond: $backgroundImage',
-      );
     }
 
-    return Image.network(
-      backgroundImage,
-      fit: BoxFit.cover,
-      loadingBuilder: (context, child, loadingProgress) {
-        if (loadingProgress == null) return child;
-        return Container(
-          color: Colors.grey[300],
-          child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-        );
-      },
-      errorBuilder: (context, error, stackTrace) {
-        print('❌ Erreur de chargement de l\'image de fond: $error');
-        return Container(
-          color: Colors.grey[300],
-          child: const Center(
-            child: Icon(Icons.tv, size: 40, color: Colors.grey),
-          ),
-        );
-      },
-    );
+    return _buildNetworkOrAssetImage(backgroundImage, fallbackIcon: Icons.tv);
   }
 
   Widget _buildSeasonPoster() {
-    // Utiliser le poster spécifique de la saison en priorité, puis l'image par défaut
     final posterImage = widget.season.getPosterImage();
-
-    print('📸 Poster de saison utilisé: $posterImage');
-
-    return Image.network(
-      posterImage,
-      fit: BoxFit.cover,
-      loadingBuilder: (context, child, loadingProgress) {
-        if (loadingProgress == null) return child;
-        return Container(
-          color: Colors.grey[300],
-          child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-        );
-      },
-      errorBuilder: (context, error, stackTrace) {
-        print('❌ Erreur de chargement du poster: $error');
-        return Container(
-          color: Colors.grey[300],
-          child: const Center(
-            child: Icon(Icons.tv, size: 40, color: Colors.grey),
-          ),
-        );
-      },
-    );
+    return _buildNetworkOrAssetImage(posterImage, fallbackIcon: Icons.movie);
   }
 
   Widget _buildVideoControls(bool isDarkMode) {

@@ -74,7 +74,7 @@ class FavoriteService {
   }
 
   /// Ajoute un film aux favoris
-  static Future<bool> addMovieToFavorites(String userId, int movieId) async {
+  static Future<bool> addMovieToFavorites(String userId, dynamic movieId) async {
     try {
       final endpoint = '/api/favorites/movies';
       final body = {
@@ -90,7 +90,7 @@ class FavoriteService {
   }
 
   /// Supprime un film des favoris
-  static Future<bool> removeMovieFromFavorites(String userId, int movieId) async {
+  static Future<bool> removeMovieFromFavorites(String userId, dynamic movieId) async {
     try {
       final endpoint = '/api/favorites/movies';
       final body = {

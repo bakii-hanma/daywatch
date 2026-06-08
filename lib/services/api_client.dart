@@ -46,10 +46,11 @@ class ApiClient {
 
   // ====== ENDPOINTS UTILISATEURS (AUTH) ======
   static const String _usersPrefix = '/api/users';
-  static const String _registerEndpoint = '$_usersPrefix/register';
-  static const String _loginEndpoint = '$_usersPrefix/login';
-  static const String _verifyEmailEndpoint = '$_usersPrefix/verify-email';
-  static const String _resendVerificationEndpoint = '$_usersPrefix/resend-verification';
+  static const String _authPrefix = '/api/auth';
+  static const String _registerEndpoint = '$_authPrefix/register';
+  static const String _loginEndpoint = '$_authPrefix/login';
+  static const String _verifyEmailEndpoint = '$_authPrefix/verify-otp';
+  static const String _resendVerificationEndpoint = '$_authPrefix/resend-otp';
   static const String _forgotPasswordEndpoint = '$_usersPrefix/forgot-password';
   static const String _updateProfileEndpoint = '$_usersPrefix/profile';
   static const String _updatePasswordEndpoint = '$_usersPrefix/password';
@@ -139,6 +140,158 @@ class ApiClient {
 
 
 
+  // Variable pour stocker la promesse du refresh en cours (pour éviter les conflits si plusieurs requêtes font 401 en même temps)
+  static Future<bool>? _refreshFuture;
+
+  /// Rafraîchir la session de manière thread-safe
+  static Future<bool> _refreshSession() async {
+    if (_refreshFuture != null) {
+      return _refreshFuture!;
+    }
+
+    _refreshFuture = () async {
+      try {
+        final userData = await UserStorageService.getUserData();
+        if (userData == null) return false;
+
+        final session = userData['session'] as Map<String, dynamic>?;
+        if (session == null) return false;
+
+        final refreshToken = session['refresh_token'] ?? session['refreshToken'];
+        if (refreshToken == null) return false;
+
+        final response = await _httpClient.post(
+          Uri.parse('$usersBaseUrl/api/auth/refresh'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'refresh_token': refreshToken}),
+        ).timeout(defaultTimeout);
+
+        if (response.statusCode == 401) {
+          // Token expiré ou révoqué -> déconnexion de l'utilisateur
+          await UserStorageService.logout();
+          return false;
+        }
+
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          final body = jsonDecode(response.body) as Map<String, dynamic>;
+          if (body['success'] == true && body['data'] != null) {
+            final data = body['data'] as Map<String, dynamic>;
+            final newSession = data['session'] as Map<String, dynamic>;
+
+            // Mettre à jour la session dans les SharedPreferences tout en conservant les autres données (plans, profils)
+            final current = await UserStorageService.getUserData();
+            if (current != null) {
+              final Map<String, dynamic> currentSession = Map<String, dynamic>.from(current['session'] as Map? ?? {});
+
+              // Mettre à jour à la fois camelCase et snake_case pour la compatibilité descendante
+              currentSession['access_token'] = newSession['access_token'];
+              currentSession['accessToken'] = newSession['access_token'];
+              currentSession['refresh_token'] = newSession['refresh_token'];
+              currentSession['refreshToken'] = newSession['refresh_token'];
+              currentSession['expires_at'] = newSession['expires_at'];
+              currentSession['expiresAt'] = newSession['expires_at'];
+              currentSession['expires_in'] = newSession['expires_in'];
+              currentSession['expiresIn'] = newSession['expires_in'];
+
+              current['session'] = currentSession;
+              if (data['user'] != null) {
+                current['user'] = data['user'];
+              }
+
+              // saveUserData ré-enveloppe ou non selon le format, mais on lui passe le format enveloppé
+              await UserStorageService.saveUserData({'success': true, 'data': current});
+            }
+            return true;
+          }
+        }
+        return false;
+      } catch (e) {
+        print('Erreur lors du rafraîchissement de la session: $e');
+        return false;
+      } finally {
+        _refreshFuture = null;
+      }
+    }();
+
+    return _refreshFuture!;
+  }
+
+  /// Méthode centrale privée pour envoyer toutes les requêtes HTTP avec gestion de l'auth et du retry
+  static Future<ApiResponse<T>> _request<T>(
+    String method,
+    String endpoint, {
+    Map<String, dynamic>? body,
+    Map<String, String>? headers,
+    Duration? timeout,
+    T Function(Map<String, dynamic>)? fromJson,
+    bool isRetry = false,
+  }) async {
+    try {
+      final url = endpoint.startsWith('http') ? endpoint : '$baseUrl$endpoint';
+      final token = await UserStorageService.getToken();
+      
+      final finalHeaders = {
+        ..._defaultHeaders,
+        if (token != null) 'Authorization': 'Bearer $token',
+        ...?headers,
+      };
+
+      final requestTimeout = timeout ?? defaultTimeout;
+      final uri = Uri.parse(url);
+      http.Response response;
+
+      switch (method.toUpperCase()) {
+        case 'POST':
+          response = await _httpClient
+              .post(uri, headers: finalHeaders, body: body != null ? jsonEncode(body) : null)
+              .timeout(requestTimeout);
+          break;
+        case 'PUT':
+          response = await _httpClient
+              .put(uri, headers: finalHeaders, body: body != null ? jsonEncode(body) : null)
+              .timeout(requestTimeout);
+          break;
+        case 'PATCH':
+          response = await _httpClient
+              .patch(uri, headers: finalHeaders, body: body != null ? jsonEncode(body) : null)
+              .timeout(requestTimeout);
+          break;
+        case 'DELETE':
+          response = await _httpClient
+              .delete(uri, headers: finalHeaders, body: body != null ? jsonEncode(body) : null)
+              .timeout(requestTimeout);
+          break;
+        case 'GET':
+        default:
+          response = await _httpClient
+              .get(uri, headers: finalHeaders)
+              .timeout(requestTimeout);
+          break;
+      }
+
+      // Si erreur 401 et qu'un token était présent et qu'on n'a pas déjà retry
+      if (response.statusCode == 401 && !isRetry && token != null) {
+        final success = await _refreshSession();
+        if (success) {
+          // Rejouer la requête d'origine
+          return _request<T>(
+            method,
+            endpoint,
+            body: body,
+            headers: headers,
+            timeout: timeout,
+            fromJson: fromJson,
+            isRetry: true,
+          );
+        }
+      }
+
+      return _handleResponse<T>(response, fromJson);
+    } catch (e) {
+      return ApiResponse.error('Erreur de connexion: $e');
+    }
+  }
+
   /// Traiter la réponse HTTP
   static Future<ApiResponse<T>> get<T>(
     String endpoint, {
@@ -146,26 +299,13 @@ class ApiClient {
     Duration? timeout,
     T Function(Map<String, dynamic>)? fromJson,
   }) async {
-    try {
-      final url = endpoint.startsWith('http') ? endpoint : '$baseUrl$endpoint';
-
-      final token = await UserStorageService.getToken();
-      final finalHeaders = {
-        ..._defaultHeaders,
-        if (token != null) 'Authorization': 'Bearer $token',
-        ...?headers,
-      };
-
-      final response = await _httpClient
-          .get(Uri.parse(url), headers: finalHeaders)
-          .timeout(timeout ?? defaultTimeout);
-
-
-
-      return _handleResponse<T>(response, fromJson);
-    } catch (e) {
-      return ApiResponse.error('Erreur de connexion: $e');
-    }
+    return _request<T>(
+      'GET',
+      endpoint,
+      headers: headers,
+      timeout: timeout,
+      fromJson: fromJson,
+    );
   }
 
   /// Effectuer une requête POST
@@ -176,28 +316,14 @@ class ApiClient {
     Duration? timeout,
     T Function(Map<String, dynamic>)? fromJson,
   }) async {
-    try {
-      final url = endpoint.startsWith('http') ? endpoint : '$baseUrl$endpoint';
-
-      final token = await UserStorageService.getToken();
-      final finalHeaders = {
-        ..._defaultHeaders,
-        if (token != null) 'Authorization': 'Bearer $token',
-        ...?headers,
-      };
-
-      final response = await _httpClient
-          .post(
-            Uri.parse(url),
-            headers: finalHeaders,
-            body: body != null ? jsonEncode(body) : null,
-          )
-          .timeout(timeout ?? defaultTimeout);
-
-      return _handleResponse<T>(response, fromJson);
-    } catch (e) {
-      return ApiResponse.error('Erreur de connexion: $e');
-    }
+    return _request<T>(
+      'POST',
+      endpoint,
+      body: body,
+      headers: headers,
+      timeout: timeout,
+      fromJson: fromJson,
+    );
   }
 
   /// Effectuer une requête PUT
@@ -208,28 +334,14 @@ class ApiClient {
     Duration? timeout,
     T Function(Map<String, dynamic>)? fromJson,
   }) async {
-    try {
-      final url = endpoint.startsWith('http') ? endpoint : '$baseUrl$endpoint';
-
-      final token = await UserStorageService.getToken();
-      final finalHeaders = {
-        ..._defaultHeaders,
-        if (token != null) 'Authorization': 'Bearer $token',
-        ...?headers,
-      };
-
-      final response = await _httpClient
-          .put(
-            Uri.parse(url),
-            headers: finalHeaders,
-            body: body != null ? jsonEncode(body) : null,
-          )
-          .timeout(timeout ?? defaultTimeout);
-
-      return _handleResponse<T>(response, fromJson);
-    } catch (e) {
-      return ApiResponse.error('Erreur de connexion: $e');
-    }
+    return _request<T>(
+      'PUT',
+      endpoint,
+      body: body,
+      headers: headers,
+      timeout: timeout,
+      fromJson: fromJson,
+    );
   }
 
   /// Effectuer une requête PATCH
@@ -240,28 +352,14 @@ class ApiClient {
     Duration? timeout,
     T Function(Map<String, dynamic>)? fromJson,
   }) async {
-    try {
-      final url = endpoint.startsWith('http') ? endpoint : '$baseUrl$endpoint';
-
-      final token = await UserStorageService.getToken();
-      final finalHeaders = {
-        ..._defaultHeaders,
-        if (token != null) 'Authorization': 'Bearer $token',
-        ...?headers,
-      };
-
-      final response = await _httpClient
-          .patch(
-            Uri.parse(url),
-            headers: finalHeaders,
-            body: body != null ? jsonEncode(body) : null,
-          )
-          .timeout(timeout ?? defaultTimeout);
-
-      return _handleResponse<T>(response, fromJson);
-    } catch (e) {
-      return ApiResponse.error('Erreur de connexion: $e');
-    }
+    return _request<T>(
+      'PATCH',
+      endpoint,
+      body: body,
+      headers: headers,
+      timeout: timeout,
+      fromJson: fromJson,
+    );
   }
 
   /// Effectuer une requête DELETE
@@ -272,30 +370,14 @@ class ApiClient {
     Duration? timeout,
     T Function(Map<String, dynamic>)? fromJson,
   }) async {
-    try {
-      final url = endpoint.startsWith('http') ? endpoint : '$baseUrl$endpoint';
-
-      final token = await UserStorageService.getToken();
-      final finalHeaders = {
-        ..._defaultHeaders,
-        if (token != null) 'Authorization': 'Bearer $token',
-        ...?headers,
-      };
-
-      // http.Client.delete n'accepte pas directement de body dans certaines versions anciennes,
-      // mais en Flutter moderne http.delete accepte bien body.
-      final response = await _httpClient
-          .delete(
-            Uri.parse(url),
-            headers: finalHeaders,
-            body: body != null ? jsonEncode(body) : null,
-          )
-          .timeout(timeout ?? defaultTimeout);
-
-      return _handleResponse<T>(response, fromJson);
-    } catch (e) {
-      return ApiResponse.error('Erreur de connexion: $e');
-    }
+    return _request<T>(
+      'DELETE',
+      endpoint,
+      body: body,
+      headers: headers,
+      timeout: timeout,
+      fromJson: fromJson,
+    );
   }
 
 
@@ -442,7 +524,7 @@ class ApiClient {
 
   /// Récupérer un film par ID
   static Future<ApiResponse<T?>> getMovieById<T>(
-    int movieId, {
+    dynamic movieId, {
     T Function(Map<String, dynamic>)? fromJson,
   }) async {
     final endpoint = '$_moviesBase/$movieId';
@@ -574,6 +656,8 @@ class ApiClient {
 
     if (response.isSuccess && response.data != null) {
       final Map<String, dynamic> itemData = response.data!;
+      print('📺 [DEBUG STREAM] Réponse brute pour les détails de la série ($seriesId) :');
+      print(jsonEncode(itemData));
       if (fromJson != null && itemData.isNotEmpty) {
         final T result = fromJson(itemData);
         return ApiResponse.success(result);

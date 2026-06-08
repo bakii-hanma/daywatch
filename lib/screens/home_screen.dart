@@ -4,6 +4,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:shimmer/shimmer.dart';
 import 'live_tv_screen.dart';
 import 'my_list_screen.dart';
+import 'series_screen.dart';
 import '../design_system/colors.dart';
 import '../design_system/spacing.dart';
 import '../services/favorite_service.dart';
@@ -25,6 +26,12 @@ import '../screens/movie_detail_screen.dart';
 import '../screens/series_detail_screen.dart';
 import '../screens/profile_screen.dart';
 import '../services/movie_service.dart';
+import '../services/series_service.dart';
+import '../services/tv_channel_service.dart';
+import '../services/watch_history_service.dart';
+import '../models/tv_channel_model.dart';
+import '../widgets/common/series_card.dart';
+import '../widgets/home/tv_channels_section.dart';
 import '../screens/actor_detail_screen.dart';
 import '../services/search_service.dart';
 import '../services/device_service.dart';
@@ -69,8 +76,25 @@ class _HomeScreenState extends State<HomeScreen> {
   // États pour les trailers de l'API
   List<TrailerApiModel> _recentTrailers = [];
 
+  // États de chargement additionnels pour alignement web
+  bool _isLoadingSeries = true;
+  bool _isLoadingTvChannels = true;
+  bool _isLoadingHistory = true;
+
+  // États pour les séries de l'API
+  List<SeriesApiModel> _popularSeries = [];
+  List<SeriesApiModel> _recentSeries = [];
+  List<SeriesApiModel> _animeSeries = [];
+  List<SeriesApiModel> _kdramaSeries = [];
+
+  // États pour les chaînes de l'API
+  List<TvChannelModel> _tvChannels = [];
+
+  // États pour la reprise de lecture
+  List<Map<String, dynamic>> _watchHistory = [];
+
   // États pour les favoris de l'utilisateur
-  Set<int> _favoriteMovieIds = {};
+  Set<String> _favoriteMovieIds = {};
   String? _userId;
 
   final List<String> posterImages = [
@@ -106,7 +130,69 @@ class _HomeScreenState extends State<HomeScreen> {
       _loadMovies(),
       _loadRecommendations(),
       _loadTrailers(),
+      _loadSeries(),
+      _loadTvChannels(),
+      _loadWatchHistory(),
     ]);
+  }
+
+  // Charger les séries
+  Future<void> _loadSeries() async {
+    if (mounted) setState(() => _isLoadingSeries = true);
+    try {
+      final popular = await SeriesService.getPopularSeries(limit: 15);
+      final recent = await SeriesService.getRecentSeries(limit: 15);
+      final anime = await SeriesService.getAnimeSeries(limit: 15);
+      final kdrama = await SeriesService.getKDramaSeries(limit: 15);
+      if (mounted) {
+        setState(() {
+          _popularSeries = popular;
+          _recentSeries = recent;
+          _animeSeries = anime;
+          _kdramaSeries = kdrama;
+          _isLoadingSeries = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingSeries = false);
+    }
+  }
+
+  // Charger les chaînes TV en direct
+  Future<void> _loadTvChannels() async {
+    if (mounted) setState(() => _isLoadingTvChannels = true);
+    try {
+      final channels = await TvChannelService.getHomeChannels(limit: 15);
+      if (mounted) {
+        setState(() {
+          _tvChannels = channels;
+          _isLoadingTvChannels = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingTvChannels = false);
+    }
+  }
+
+  // Charger l'historique pour reprendre la lecture
+  Future<void> _loadWatchHistory() async {
+    if (_userId == null) {
+      if (mounted) setState(() => _isLoadingHistory = false);
+      return;
+    }
+    if (mounted) setState(() => _isLoadingHistory = true);
+    try {
+      final history = await WatchHistoryService.getMovieWatchHistory(_userId!);
+      final ongoing = history.where((h) => h['isCompleted'] != true).toList();
+      if (mounted) {
+        setState(() {
+          _watchHistory = ongoing;
+          _isLoadingHistory = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingHistory = false);
+    }
   }
 
   // Charger les trailers
@@ -530,6 +616,118 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   const SizedBox(height: AppSpacing.xl),
 
+                  // Section Reprendre la lecture
+                  if (!_isLoadingHistory && _watchHistory.isNotEmpty) ...[
+                    HorizontalSection<Map<String, dynamic>>(
+                      title: 'Reprendre la lecture',
+                      items: _watchHistory,
+                      itemWidth: 200,
+                      sectionHeight: 180,
+                      isDarkMode: isDarkMode,
+                      showSeeMore: false,
+                      itemBuilder: (entry, index) {
+                        final movie = entry['movie'] as MovieApiModel;
+                        final pos = entry['lastWatchedPosition'] as int? ?? 0;
+                        final duration = movie.runtime * 60;
+                        final progress = duration > 0 ? (pos / duration) : 0.0;
+                        return GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => MovieDetailScreen.fromApiMovie(movie),
+                              ),
+                            );
+                          },
+                          child: Container(
+                            width: 200,
+                            margin: const EdgeInsets.only(right: 12),
+                            decoration: BoxDecoration(
+                              color: AppColors.getWidgetBackgroundColor(isDarkMode),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Stack(
+                                children: [
+                                  if (movie.images.backdrop != null)
+                                    Image.network(
+                                      movie.images.backdrop!,
+                                      width: 200,
+                                      height: 180,
+                                      fit: BoxFit.cover,
+                                    )
+                                  else if (movie.images.poster != null)
+                                    Image.network(
+                                      movie.images.poster!,
+                                      width: 200,
+                                      height: 180,
+                                      fit: BoxFit.cover,
+                                    )
+                                  else
+                                    Container(
+                                      width: 200,
+                                      height: 180,
+                                      color: Colors.grey[800],
+                                      child: const Icon(Icons.movie, color: Colors.white),
+                                    ),
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
+                                        colors: [Colors.transparent, Colors.black.withOpacity(0.8)],
+                                      ),
+                                    ),
+                                  ),
+                                  Positioned(
+                                    bottom: 12,
+                                    left: 12,
+                                    right: 12,
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          movie.title,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        const SizedBox(height: 8),
+                                        ClipRRect(
+                                          borderRadius: BorderRadius.circular(2),
+                                          child: LinearProgressIndicator(
+                                            value: progress,
+                                            backgroundColor: Colors.grey[700],
+                                            valueColor: const AlwaysStoppedAnimation<Color>(Colors.red),
+                                            minHeight: 4,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Center(
+                                    child: Icon(
+                                      Icons.play_circle_fill,
+                                      color: Colors.white.withOpacity(0.8),
+                                      size: 40,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: AppSpacing.xxl),
+                  ],
+
                   // Section Films populaires (API)
                   _isLoadingMovies
                       ? _buildHorizontalListShimmer(
@@ -541,6 +739,45 @@ class _HomeScreenState extends State<HomeScreen> {
                           isDarkMode: isDarkMode,
                           favoriteMovieIds: _favoriteMovieIds,
                           onFavoriteTap: _toggleMovieFavorite,
+                        ),
+                  const SizedBox(height: AppSpacing.xxl),
+
+                  // Section Séries populaires (API)
+                  _isLoadingSeries
+                      ? _buildHorizontalListShimmer(
+                          isDarkMode,
+                          title: 'Séries populaires',
+                        )
+                      : HorizontalSection<SeriesApiModel>(
+                          title: 'Séries populaires',
+                          items: _popularSeries,
+                          itemWidth: 150,
+                          sectionHeight: 290,
+                          isDarkMode: isDarkMode,
+                          onSeeMoreTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const SeriesScreen(),
+                              ),
+                            );
+                          },
+                          itemBuilder: (series, index) {
+                            return SeriesCard.fromApiModel(
+                              series: series,
+                              isDarkMode: isDarkMode,
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => SeriesDetailScreen.fromApiSeries(
+                                      apiSeries: series,
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                          },
                         ),
                   const SizedBox(height: AppSpacing.xxl),
 
@@ -556,6 +793,75 @@ class _HomeScreenState extends State<HomeScreen> {
                           favoriteMovieIds: _favoriteMovieIds,
                           onFavoriteTap: _toggleMovieFavorite,
                         ),
+                  const SizedBox(height: AppSpacing.xxl),
+
+                  // Section Animés populaires
+                  if (!_isLoadingSeries && _animeSeries.isNotEmpty) ...[
+                    HorizontalSection<SeriesApiModel>(
+                      title: 'Animés populaires',
+                      items: _animeSeries,
+                      itemWidth: 150,
+                      sectionHeight: 290,
+                      isDarkMode: isDarkMode,
+                      itemBuilder: (series, index) {
+                        return SeriesCard.fromApiModel(
+                          series: series,
+                          isDarkMode: isDarkMode,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => SeriesDetailScreen.fromApiSeries(
+                                  apiSeries: series,
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                    const SizedBox(height: AppSpacing.xxl),
+                  ],
+
+                  // Section K-Dramas
+                  if (!_isLoadingSeries && _kdramaSeries.isNotEmpty) ...[
+                    HorizontalSection<SeriesApiModel>(
+                      title: 'K-Dramas',
+                      items: _kdramaSeries,
+                      itemWidth: 150,
+                      sectionHeight: 290,
+                      isDarkMode: isDarkMode,
+                      itemBuilder: (series, index) {
+                        return SeriesCard.fromApiModel(
+                          series: series,
+                          isDarkMode: isDarkMode,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => SeriesDetailScreen.fromApiSeries(
+                                  apiSeries: series,
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                    const SizedBox(height: AppSpacing.xxl),
+                  ],
+
+                  // Section IPTV En direct
+                  TvChannelsSection(
+                    title: 'Chaînes en direct',
+                    channels: _tvChannels,
+                    isLoading: _isLoadingTvChannels,
+                    onSeeMoreTap: () {
+                      setState(() {
+                        _selectedIndex = 2; // Onglet direct
+                      });
+                    },
+                  ),
                   const SizedBox(height: AppSpacing.xxl),
 
                   // Section Bandes-annonces (API)
@@ -608,6 +914,45 @@ class _HomeScreenState extends State<HomeScreen> {
                                 );
                               },
                               onFavoriteTap: () => _toggleMovieFavorite(movie),
+                            );
+                          },
+                        ),
+                  const SizedBox(height: AppSpacing.xxl),
+
+                  // Section Dernières séries (API)
+                  _isLoadingSeries
+                      ? _buildHorizontalListShimmer(
+                          isDarkMode,
+                          title: 'Dernières séries',
+                        )
+                      : HorizontalSection<SeriesApiModel>(
+                          title: 'Dernières séries',
+                          items: _recentSeries,
+                          itemWidth: 150,
+                          sectionHeight: 290,
+                          isDarkMode: isDarkMode,
+                          onSeeMoreTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const SeriesScreen(),
+                              ),
+                            );
+                          },
+                          itemBuilder: (series, index) {
+                            return SeriesCard.fromApiModel(
+                              series: series,
+                              isDarkMode: isDarkMode,
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => SeriesDetailScreen.fromApiSeries(
+                                      apiSeries: series,
+                                    ),
+                                  ),
+                                );
+                              },
                             );
                           },
                         ),
@@ -854,6 +1199,9 @@ class _HomeScreenState extends State<HomeScreen> {
       _isLoadingMovies = true;
       _isLoadingRecommendations = true;
       _isLoadingTrailers = true;
+      _isLoadingSeries = true;
+      _isLoadingTvChannels = true;
+      _isLoadingHistory = true;
     });
 
     // Vider les listes actuelles
@@ -863,6 +1211,12 @@ class _HomeScreenState extends State<HomeScreen> {
     _recommendations.clear();
     _headerMovies.clear();
     _recentTrailers.clear();
+    _popularSeries.clear();
+    _recentSeries.clear();
+    _animeSeries.clear();
+    _kdramaSeries.clear();
+    _tvChannels.clear();
+    _watchHistory.clear();
 
     // Recharger toutes les données
     await _loadAllData();

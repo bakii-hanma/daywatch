@@ -93,13 +93,26 @@ class EpisodeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: episode != null ? () => _launchEpisodePlayer(context) : onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+    final isAvailable = episode == null ? true : (episode!.hasFile && episode!.file != null);
+
+    return Opacity(
+      opacity: isAvailable ? 1.0 : 0.6,
+      child: InkWell(
+        onTap: isAvailable
+            ? (episode != null ? () => _launchEpisodePlayer(context) : onTap)
+            : () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Cet épisode n\'est pas encore disponible'),
+                    backgroundColor: Colors.grey,
+                  ),
+                );
+              },
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             // Image de l'épisode en pleine largeur
             Stack(
               children: [
@@ -264,22 +277,45 @@ class EpisodeCard extends StatelessWidget {
                   ),
                 ),
 
-                // Icône play au centre
+                // Icône play au centre ou badge "Arrive bientôt"
                 Positioned.fill(
                   child: Center(
-                    child: Container(
-                      width: 60,
-                      height: 60,
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.6),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.play_arrow,
-                        color: Colors.white,
-                        size: 32,
-                      ),
-                    ),
+                    child: isAvailable
+                        ? Container(
+                            width: 60,
+                            height: 60,
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.6),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.play_arrow,
+                              color: Colors.white,
+                              size: 32,
+                            ),
+                          )
+                        : Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.7),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.2),
+                              ),
+                            ),
+                            child: const Text(
+                              'ARRIVE BIENTÔT',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                          ),
                   ),
                 ),
               ],
@@ -333,6 +369,7 @@ class EpisodeCard extends StatelessWidget {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 }

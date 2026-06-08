@@ -20,37 +20,37 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     OnboardingData(
       image:
           'assets/onboard_screen/910ed5dcbbd04288c2674e5d6a0bdcfb776bca38.png',
-      title: 'Des Choix, Des Choix, Des Choix !',
+      title: 'Un catalogue infini',
       description:
-          'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam.',
+          'Découvrez des milliers de films et de séries disponibles à tout moment.',
     ),
     OnboardingData(
       image:
           'assets/onboard_screen/53f444cf7124f793dc33f98369ad528b49186dd3.png',
-      title: 'Buffet du Streaming, Sans Réservation',
+      title: 'Suivez vos programmes',
       description:
-          'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.',
+          'Marquez vos épisodes vus et gardez un œil sur votre progression au quotidien.',
     ),
     OnboardingData(
       image:
           'assets/onboard_screen/291f97540f3e0e9c223678e0bdb2da295bbe2cc3.png',
-      title: 'Échantillon de Streaming : 3 Jours et Popotin Érigides',
+      title: 'Recommandations sur mesure',
       description:
-          'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.',
+          'Obtenez des suggestions adaptées à vos goûts et à vos habitudes.',
     ),
     OnboardingData(
       image:
           'assets/onboard_screen/7a410f384b9c7b5535c258519827db3f43cba2d8.png',
-      title: 'Alors, Vous Êtes Toujours Là ?',
+      title: 'Listes de favoris',
       description:
-          'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.',
+          'Organisez vos films et séries préférés pour les retrouver facilement.',
     ),
     OnboardingData(
       image:
           'assets/onboard_screen/c118e89807e500bdca95618db64a74ff3e89a2b6.png',
-      title: 'Bienvenu Daywatcher !',
+      title: 'Bienvenue sur Daywatch !',
       description:
-          'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.',
+          'Préparez votre pop-corn et commencez votre aventure cinématographique dès maintenant.',
     ),
   ];
 

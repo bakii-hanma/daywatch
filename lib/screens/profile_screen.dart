@@ -8,9 +8,15 @@ import '../widgets/profile/profile_logout_button.dart';
 import '../services/user_storage_service.dart';
 import '../services/profile_service.dart';
 import '../services/device_service.dart';
+import '../services/theme_service.dart';
+import '../services/plan_service.dart';
+import '../models/subscription_status_model.dart';
 import 'devices_screen.dart';
 import 'subscription_screen.dart';
 import 'edit_profile_screen.dart';
+import 'faq_screen.dart';
+import 'support_screen.dart';
+import 'about_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -25,6 +31,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   List<dynamic> _profiles = [];
   int _connectedDevicesCount = 1;
   bool _isLoading = true;
+  UserSubscriptionStatusModel? _subStatus;
   
   // États locaux pour les commutateurs (Wi-Fi et Thème)
   bool _wifiOnly = false;
@@ -33,6 +40,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
+    _isDarkTheme = ThemeService.themeModeNotifier.value == ThemeMode.dark;
     _loadUserData();
   }
 
@@ -78,6 +86,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (mounted) {
         setState(() {
           _connectedDevicesCount = activeDevices > 0 ? activeDevices : 1;
+        });
+      }
+
+      // Charger le statut d'abonnement
+      final subStatus = await PlanService.getSubscriptionStatus();
+      if (mounted) {
+        setState(() {
+          _subStatus = subStatus;
         });
       }
     } catch (e) {
@@ -136,6 +152,82 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSubscriptionBadge(Color textColor) {
+    if (_subStatus == null) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: Colors.grey,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: const Text(
+          'CHARGEMENT',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 9,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      );
+    }
+
+    final status = _subStatus!.status?.toUpperCase() ?? '';
+    final daysRemaining = _subStatus!.daysRemaining;
+
+    if (_subStatus!.isTrialPeriod || status.startsWith('TRIAL')) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: Colors.amber[700],
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Text(
+          'ESSAI (${daysRemaining}J)',
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 9,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      );
+    }
+
+    final isPaidActive = ['ACTIVE', 'SUBSCRIPTION_ENDING_SOON', 'SUBSCRIPTION_ENDING_CRITICAL'].contains(status);
+    if (isPaidActive) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: const Color(0xFF00C853),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Text(
+          _subStatus!.plan?.name.toUpperCase() ?? 'ACTIF',
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 9,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE50914),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: const Text(
+        'S\'ABONNER',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 9,
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
   }
@@ -233,30 +325,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFE50914),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: const Text(
-                            'ESSAI (1J)',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
+                        _buildSubscriptionBadge(textColor),
                         const SizedBox(width: 8),
                         Icon(Icons.chevron_right_rounded, color: textColor.withOpacity(0.3), size: 20),
                       ],
                     ),
-                    onTap: () {
-                      Navigator.push(
+                    onTap: () async {
+                      await Navigator.push(
                         context,
                         MaterialPageRoute(builder: (_) => const SubscriptionScreen()),
                       );
+                      _loadUserData();
                     },
                   ),
                   ProfileOptionTile(
@@ -333,6 +412,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         setState(() {
                           _isDarkTheme = val;
                         });
+                        ThemeService.setThemeMode(val ? ThemeMode.dark : ThemeMode.light);
                       },
                     ),
                   ),
@@ -368,18 +448,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ProfileOptionTile(
                     icon: Icons.help_outline_rounded,
                     title: 'FAQ',
-                    onTap: () {},
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const FaqScreen()),
+                      );
+                    },
                   ),
                   ProfileOptionTile(
                     icon: Icons.support_agent_rounded,
                     title: 'Support technique',
-                    onTap: () {},
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const SupportScreen()),
+                      );
+                    },
                   ),
                   ProfileOptionTile(
                     icon: Icons.info_outline_rounded,
                     title: 'À propos',
                     showDivider: false,
-                    onTap: () {},
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const AboutScreen()),
+                      );
+                    },
                   ),
                 ],
               ),

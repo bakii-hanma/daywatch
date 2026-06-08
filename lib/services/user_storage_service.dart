@@ -114,9 +114,10 @@ class UserStorageService {
     final userData = _getActualUserData(rawData);
     if (userData == null) return null;
     
-    // Essayer de récupérer le token depuis l'objet session de Supabase
+    // Essayer de récupérer le token depuis l'objet session de l'authentification
     if (userData.containsKey('session') && userData['session'] is Map) {
-      return userData['session']['accessToken'] as String?;
+      final session = userData['session'] as Map<String, dynamic>;
+      return (session['access_token'] ?? session['accessToken']) as String?;
     }
     
     // Fallback sur l'ancien format de clé 'token'

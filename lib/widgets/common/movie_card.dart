@@ -3,6 +3,7 @@ import '../../design_system/colors.dart';
 import '../../design_system/typography.dart';
 import '../../design_system/spacing.dart';
 import '../../models/movie_model.dart';
+import '../../config/server_config.dart';
 
 class MovieCard extends StatelessWidget {
   final String imagePath;
@@ -253,7 +254,7 @@ class MovieCard extends StatelessWidget {
 
     String resolvedImagePath = imagePath;
     if (imagePath.startsWith('/')) {
-      resolvedImagePath = 'https://api.daywatch.online$imagePath';
+      resolvedImagePath = '${ServerConfig.apiBaseUrl}$imagePath';
     }
 
     final isNetwork = isNetworkImage ||

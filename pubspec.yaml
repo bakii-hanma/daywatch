@@ -67,6 +67,10 @@ dependencies:
   # Image Picker - Sélection d'images depuis la galerie ou la caméra
   image_picker: ^1.0.4
 
+  # URL Launcher - Pour ouvrir des liens externes
+  url_launcher: ^6.2.5
+
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

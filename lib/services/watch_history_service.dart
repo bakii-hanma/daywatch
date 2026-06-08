@@ -26,7 +26,7 @@ class WatchHistoryService {
           final movieId = mapItem['movieID'] ?? mapItem['movieId'];
           
           if (movieId != null) {
-            final movieDetails = await MovieService.getMovieById(movieId is String ? int.parse(movieId) : movieId);
+            final movieDetails = await MovieService.getMovieById(movieId);
             if (movieDetails != null) {
               mapItem['movie'] = movieDetails;
               enrichedHistory.add(mapItem);
@@ -79,7 +79,7 @@ class WatchHistoryService {
   /// Enregistre ou met à jour la progression de visionnage d'un film
   static Future<bool> saveMovieWatchHistory({
     required String userId,
-    required int movieId,
+    required dynamic movieId,
     required int lastWatchedPosition, // en secondes
     required String lastWatchedDate,
     required bool isCompleted,

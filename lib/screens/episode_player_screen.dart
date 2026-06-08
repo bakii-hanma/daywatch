@@ -51,7 +51,9 @@ class _EpisodePlayerScreenState extends State<EpisodePlayerScreen> {
     final videoPath = fileInfo.fullPath;
     print('📂 Utilisation du chemin complet: $videoPath');
 
-    final videoUrl = ServerConfig.getStreamingUrl(videoPath);
+    final videoUrl = ServerConfig.getApiUrl(
+      '/api/sonarr/series/${widget.episode.seriesId}/seasons/${widget.episode.seasonNumber}/episodes/${widget.episode.episodeNumber}/stream',
+    );
 
     print('🎬 Initialisation du lecteur d\'épisode');
     print('📁 Fichier: ${fileInfo.fileName}');

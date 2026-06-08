@@ -87,26 +87,22 @@ class _SearchScreenState extends State<SearchScreen> {
     try {
       print('🔍 Chargement des films pour la page de recherche...');
 
-      // Test de connectivité d'abord
-      final isConnected = await MovieService.testConnection();
+      // Récupérer tous les films (en utilisant le cache optimisé via /api/movies)
+      final allMovies = await MovieService.getOrFetchAllMovies();
 
-      if (!isConnected) {
-        print('❌ Impossible de se connecter à l\'API');
-        setState(() {
-          _isLoadingRecentMovies = false;
-          _isLoadingPopularMovies = false;
-        });
-        return;
-      }
+      // 1. Extraire les films populaires (triés par popularité décroissante)
+      final popularList = List<MovieApiModel>.from(allMovies);
+      popularList.sort((a, b) => b.popularity.compareTo(a.popularity));
+      final popularMovies = popularList.take(15).toList();
 
-      print('✅ Connectivité API confirmée');
-
-      // Charger les films récents et populaires en parallèle
-      final recentMoviesFuture = MovieService.getRecentMovies(limit: 10);
-      final popularMoviesFuture = MovieService.getPopularMovies(limit: 10);
-
-      final recentMovies = await recentMoviesFuture;
-      final popularMovies = await popularMoviesFuture;
+      // 2. Extraire les derniers films (triés par année décroissante, puis par ID décroissant)
+      final recentList = List<MovieApiModel>.from(allMovies);
+      recentList.sort((a, b) {
+        final yearCompare = b.year.compareTo(a.year);
+        if (yearCompare != 0) return yearCompare;
+        return b.id.compareTo(a.id);
+      });
+      final recentMovies = recentList.take(15).toList();
 
       setState(() {
         _recentMovies = recentMovies;

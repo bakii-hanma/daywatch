@@ -9,7 +9,7 @@ import '../../screens/movie_detail_screen.dart';
 class PopularMoviesSection extends StatelessWidget {
   final List<MovieApiModel> popularMovies;
   final bool isDarkMode;
-  final Set<int> favoriteMovieIds;
+  final Set<String> favoriteMovieIds;
   final Function(MovieApiModel movie)? onFavoriteTap;
 
   const PopularMoviesSection({

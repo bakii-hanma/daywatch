@@ -1,3 +1,14 @@
+import '../config/server_config.dart';
+
+String _resolveImageUrl(String? url) {
+  if (url == null || url.isEmpty) return '';
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  if (url.startsWith('/')) {
+    return '${ServerConfig.apiBaseUrl}$url';
+  }
+  return url;
+}
+
 class TvChannelModel {
   final String id;
   final String name;
@@ -34,7 +45,7 @@ class TvChannelModel {
       id: json['id'] ?? '',
       name: json['name'] ?? '',
       category: categoryStr,
-      logo: json['logo'] ?? '', // Peut être vide dans cette API
+      logo: _resolveImageUrl(json['logo'] as String?),
       url:
           json['primaryStream'] ??
           json['url'] ??

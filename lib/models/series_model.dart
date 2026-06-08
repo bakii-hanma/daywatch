@@ -1,4 +1,4 @@
-import 'movie_model.dart';
+﻿import 'movie_model.dart';
 
 class SeriesApiModel {
   final String
@@ -192,6 +192,11 @@ class SeriesApiModel {
       );
     }
 
+        // Log final pour vérifier les images récupérées
+    print('🎬 Série créée: ${json['title']}');
+    print('   Poster final: ${poster.isEmpty ? "VIDE" : poster}');
+    print('   Banner final: ${banner.isEmpty ? "VIDE" : banner}');
+
     return SeriesApiModel(
       id: json['id']?.toString() ?? '0', // Convertir en String
       tmdbId: json['tmdbId'] ?? 0,
@@ -225,12 +230,6 @@ class SeriesApiModel {
           : null,
       episodesBySeason: episodesBySeason,
     );
-
-    // Log final pour vérifier les images récupérées
-    print('🎬 Série créée: ${json['title']}');
-    print('   📸 Poster final: ${poster.isEmpty ? "❌ VIDE" : "✅ $poster"}');
-    print('   🎭 Banner final: ${banner.isEmpty ? "❌ VIDE" : "✅ $banner"}');
-    print('   🖼️ Fanart final: ${fanart.isEmpty ? "❌ VIDE" : "✅ $fanart"}');
   }
 
   Map<String, dynamic> toJson() {
@@ -268,6 +267,69 @@ class SeriesApiModel {
             MapEntry(key.toString(), value.map((e) => e.toJson()).toList()),
       ),
     };
+  }
+  SeriesApiModel copyWith({
+    String? id,
+    int? tmdbId,
+    String? title,
+    String? sortTitle,
+    int? year,
+    String? status,
+    String? overview,
+    String? network,
+    String? airTime,
+    String? poster,
+    String? banner,
+    String? fanart,
+    double? rating,
+    String? certification,
+    List<String>? genres,
+    int? runtime,
+    String? premiered,
+    bool? ended,
+    bool? isAvailable,
+    bool? monitored,
+    String? path,
+    EpisodeStats? episodeStats,
+    SeasonInfo? seasonInfo,
+    String? imdbId,
+    int? tvdbId,
+    int? tvMazeId,
+    MovieCast? cast,
+    MovieGallery? gallery,
+    Map<int, List<EpisodeApiModel>>? episodesBySeason,
+  }) {
+    return SeriesApiModel(
+      id: id ?? this.id,
+      tmdbId: tmdbId ?? this.tmdbId,
+      title: title ?? this.title,
+      sortTitle: sortTitle ?? this.sortTitle,
+      year: year ?? this.year,
+      status: status ?? this.status,
+      overview: overview ?? this.overview,
+      network: network ?? this.network,
+      airTime: airTime ?? this.airTime,
+      poster: poster ?? this.poster,
+      banner: banner ?? this.banner,
+      fanart: fanart ?? this.fanart,
+      rating: rating ?? this.rating,
+      certification: certification ?? this.certification,
+      genres: genres ?? this.genres,
+      runtime: runtime ?? this.runtime,
+      premiered: premiered ?? this.premiered,
+      ended: ended ?? this.ended,
+      isAvailable: isAvailable ?? this.isAvailable,
+      monitored: monitored ?? this.monitored,
+      path: path ?? this.path,
+      episodeStats: episodeStats ?? this.episodeStats,
+      seasonInfo: seasonInfo ?? this.seasonInfo,
+      imdbId: imdbId ?? this.imdbId,
+      tvdbId: tvdbId ?? this.tvdbId,
+      tvMazeId: tvMazeId ?? this.tvMazeId,
+      cast: cast ?? this.cast,
+      gallery: gallery ?? this.gallery,
+      episodesBySeason: episodesBySeason ?? this.episodesBySeason,
+    );
   }
 
   // Méthode pour obtenir les épisodes d'une saison spécifique
@@ -386,7 +448,8 @@ class EpisodeStats {
     required this.percentageDownloaded,
   });
 
-  factory EpisodeStats.fromJson(Map<String, dynamic> json) {
+  factory EpisodeStats.fromJson(dynamic json) {
+    if (json is! Map) return EpisodeStats(total: 0, available: 0, monitored: 0, percentageDownloaded: 0.0);
     return EpisodeStats(
       total: json['total'] ?? 0,
       available: json['available'] ?? 0,
@@ -416,7 +479,8 @@ class SeasonInfo {
     required this.seasons,
   });
 
-  factory SeasonInfo.fromJson(Map<String, dynamic> json) {
+  factory SeasonInfo.fromJson(dynamic json) {
+    if (json is! Map) return SeasonInfo(totalSeasons: 0, currentSeason: 0, seasons: []);
     return SeasonInfo(
       totalSeasons: json['totalSeasons'] ?? 0,
       currentSeason: json['currentSeason'] ?? 0,
@@ -466,7 +530,8 @@ class Season {
     required this.fanart,
   });
 
-  factory Season.fromJson(Map<String, dynamic> json) {
+  factory Season.fromJson(dynamic json) {
+    if (json is! Map) return Season(number: 0, title: '', monitored: false, episodeCount: 0, episodeFileCount: 0, monitoredCount: 0, percentComplete: 0.0, sizeOnDisk: 0, sizeOnDiskGB: 0.0, poster: '', banner: '', fanart: '');
     // Extraire les images depuis la structure season
     String poster = json['poster'] ?? '';
     String banner = json['banner'] ?? '';
@@ -612,7 +677,8 @@ class EpisodeTmdbData {
     required this.guestStars,
   });
 
-  factory EpisodeTmdbData.fromJson(Map<String, dynamic> json) {
+  factory EpisodeTmdbData.fromJson(dynamic json) {
+    if (json is! Map) return EpisodeTmdbData(tmdbId: 0, name: '', overview: '', airDate: '', episodeNumber: 0, seasonNumber: 0, stillPath: '', voteAverage: 0.0, voteCount: 0, runtime: 0, crew: [], guestStars: []);
     return EpisodeTmdbData(
       tmdbId: json['tmdbId'] ?? 0,
       name: json['name'] ?? '',
@@ -673,7 +739,8 @@ class EpisodeFileInfo {
     this.streamUrl,
   });
 
-  factory EpisodeFileInfo.fromJson(Map<String, dynamic> json) {
+  factory EpisodeFileInfo.fromJson(dynamic json) {
+    if (json is! Map) return EpisodeFileInfo(id: 0, fileName: '', fullPath: '', relativePath: '', size: 0, sizeGB: 0.0, quality: EpisodeQuality(name: '', resolution: ''), mediaInfo: EpisodeMediaInfo(videoCodec: '', audioCodec: '', resolution: '', videoFps: 0, audioChannels: 0, audioLanguages: [], subtitles: []));
     return EpisodeFileInfo(
       id: json['id'] ?? 0,
       fileName: json['fileName'] ?? '',
@@ -710,7 +777,8 @@ class EpisodeQuality {
 
   EpisodeQuality({required this.name, required this.resolution});
 
-  factory EpisodeQuality.fromJson(Map<String, dynamic> json) {
+  factory EpisodeQuality.fromJson(dynamic json) {
+    if (json is! Map) return EpisodeQuality(name: '', resolution: '');
     return EpisodeQuality(
       name: json['name'] ?? '',
       resolution: json['resolution'] ?? '',
@@ -741,7 +809,8 @@ class EpisodeMediaInfo {
     required this.subtitles,
   });
 
-  factory EpisodeMediaInfo.fromJson(Map<String, dynamic> json) {
+  factory EpisodeMediaInfo.fromJson(dynamic json) {
+    if (json is! Map) return EpisodeMediaInfo(videoCodec: '', audioCodec: '', resolution: '', videoFps: 0, audioChannels: 0, audioLanguages: [], subtitles: []);
     return EpisodeMediaInfo(
       videoCodec: json['videoCodec'] ?? '',
       audioCodec: json['audioCodec'] ?? '',
@@ -778,7 +847,8 @@ class EpisodeImage {
     this.localUrl,
   });
 
-  factory EpisodeImage.fromJson(Map<String, dynamic> json) {
+  factory EpisodeImage.fromJson(dynamic json) {
+    if (json is! Map) return EpisodeImage(coverType: '', remoteUrl: '');
     return EpisodeImage(
       coverType: json['coverType'] ?? '',
       remoteUrl: json['remoteUrl'] ?? '',
@@ -1071,7 +1141,8 @@ class EpisodeRatings {
 
   EpisodeRatings({required this.value});
 
-  factory EpisodeRatings.fromJson(Map<String, dynamic> json) {
+  factory EpisodeRatings.fromJson(dynamic json) {
+    if (json is! Map) return EpisodeRatings(value: 0.0);
     return EpisodeRatings(value: (json['value'] ?? 0.0).toDouble());
   }
 
@@ -1087,7 +1158,8 @@ class EpisodeMetadata {
 
   EpisodeMetadata({required this.episodeFileId, required this.lastSearchTime});
 
-  factory EpisodeMetadata.fromJson(Map<String, dynamic> json) {
+  factory EpisodeMetadata.fromJson(dynamic json) {
+    if (json is! Map) return EpisodeMetadata(episodeFileId: 0, lastSearchTime: '');
     return EpisodeMetadata(
       episodeFileId: json['episodeFileId'] ?? 0,
       lastSearchTime: json['lastSearchTime'] ?? '',
@@ -1105,7 +1177,8 @@ class EpisodeGallery {
 
   EpisodeGallery({required this.stills});
 
-  factory EpisodeGallery.fromJson(Map<String, dynamic> json) {
+  factory EpisodeGallery.fromJson(dynamic json) {
+    if (json is! Map) return EpisodeGallery(stills: []);
     final List<dynamic> stillsData = json['stills'] ?? [];
     return EpisodeGallery(
       stills: stillsData.map((still) => EpisodeStill.fromJson(still)).toList(),
@@ -1137,7 +1210,8 @@ class EpisodeStill {
     required this.voteAverage,
   });
 
-  factory EpisodeStill.fromJson(Map<String, dynamic> json) {
+  factory EpisodeStill.fromJson(dynamic json) {
+    if (json is! Map) return EpisodeStill(filePath: '', url: '', thumbUrl: '', width: 0, height: 0, aspectRatio: 0.0, voteAverage: 0.0);
     return EpisodeStill(
       filePath: json['filePath'] ?? '',
       url: json['url'] ?? '',

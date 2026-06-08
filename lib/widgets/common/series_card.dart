@@ -4,6 +4,7 @@ import '../../design_system/typography.dart';
 import '../../design_system/spacing.dart';
 import '../../models/series_model.dart';
 import '../../models/movie_model.dart';
+import '../../config/server_config.dart';
 
 class SeriesCard extends StatelessWidget {
   final String imagePath;
@@ -218,7 +219,7 @@ class SeriesCard extends StatelessWidget {
 
     String resolvedImagePath = imagePath;
     if (imagePath.startsWith('/')) {
-      resolvedImagePath = 'https://api.daywatch.online$imagePath';
+      resolvedImagePath = '${ServerConfig.apiBaseUrl}$imagePath';
     }
 
     final isNetwork = isNetworkImage ||

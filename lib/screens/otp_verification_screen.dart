@@ -87,7 +87,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       final verifyResponse = await ApiClient.verifyEmail<Map<String, dynamic>>(
         body: {
           'email': widget.email,
-          'token': otpCode,
+          'code': otpCode,
         },
       );
 

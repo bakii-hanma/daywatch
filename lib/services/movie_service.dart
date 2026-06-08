@@ -1,3 +1,4 @@
+import 'dart:convert';
 import '../models/movie_model.dart';
 import 'api_client.dart';
 
@@ -74,30 +75,56 @@ class MovieService {
   // ── 2. GET /api/movies/:id ──────────────────────────────────────────────────
   static Future<MovieApiModel?> getMovieById(dynamic movieId) async {
     final route = 'GET /api/movies/$movieId';
-    try {
-      final response = await ApiClient.get<dynamic>('/api/movies/$movieId');
-      if (!response.isSuccess || response.data == null) {
-        _logRoute(route, 0, extra: 'réponse vide ou échec');
-        return null;
+    int attempt = 0;
+    const maxRetries = 3;
+
+    while (attempt < maxRetries) {
+      attempt++;
+      try {
+        final response = await ApiClient.get<dynamic>('/api/movies/$movieId');
+        if (!response.isSuccess || response.data == null) {
+          _logRoute(route, 0, extra: 'réponse vide ou échec (tentative $attempt/$maxRetries)');
+          if (attempt < maxRetries) {
+            await Future.delayed(Duration(milliseconds: 1500 * attempt));
+            continue;
+          }
+          return null;
+        }
+
+        print('🎬 [DEBUG STREAM] Réponse brute pour les détails du film ($movieId) (tentative $attempt) :');
+        print(jsonEncode(response.data));
+
+        dynamic movieData;
+        if (response.data is Map<String, dynamic>) {
+          final map = response.data as Map<String, dynamic>;
+          movieData = map.containsKey('data') ? map['data'] : map;
+        } else {
+          movieData = response.data;
+        }
+
+        if (movieData == null) {
+          _logRoute(route, 0, extra: 'data null après extraction');
+          if (attempt < maxRetries) {
+            await Future.delayed(Duration(milliseconds: 1500 * attempt));
+            continue;
+          }
+          return null;
+        }
+
+        final movie = MovieApiModel.fromJson(movieData as Map<String, dynamic>);
+        print('🎬 [Films] $route → "${movie.title}" (id=${movie.id}, tmdb=${movie.tmdbId})');
+        return movie;
+      } catch (e, stackTrace) {
+        _logError('$route (tentative $attempt/$maxRetries)', e);
+        print(stackTrace);
+        if (attempt < maxRetries) {
+          await Future.delayed(Duration(milliseconds: 1500 * attempt));
+        } else {
+          return null;
+        }
       }
-      dynamic movieData;
-      if (response.data is Map<String, dynamic>) {
-        final map = response.data as Map<String, dynamic>;
-        movieData = map.containsKey('data') ? map['data'] : map;
-      } else {
-        movieData = response.data;
-      }
-      if (movieData == null) {
-        _logRoute(route, 0, extra: 'data null après extraction');
-        return null;
-      }
-      final movie = MovieApiModel.fromJson(movieData as Map<String, dynamic>);
-      print('🎬 [Films] $route → "${movie.title}" (id=${movie.id}, tmdb=${movie.tmdbId})');
-      return movie;
-    } catch (e) {
-      _logError(route, e);
-      return null;
     }
+    return null;
   }
 
   static Future<MovieApiModel?> getMovieByTmdbId(int tmdbId) async {
@@ -240,10 +267,6 @@ class MovieService {
 
   // ── Alias / utilitaires ────────────────────────────────────────────────────
 
-  /// Alias de getAllMovies pour compatibilité
-  static Future<List<MovieApiModel>> getEssentialMovies({int limit = 20}) =>
-      getAllMovies(limit: limit);
-
   /// Box office = films populaires filtrés NSFW
   static Future<List<MovieApiModel>> getBoxOfficeMovies({int limit = 10}) async {
     final movies = await getPopularMovies(limit: limit);
@@ -270,6 +293,72 @@ class MovieService {
       return r.isSuccess;
     } catch (_) {
       return false;
+    }
+  }
+
+  // ── Méthodes d'enrichissement client pour le casting, la galerie et les vidéos ──
+
+  static Future<MovieCast?> getMovieCredits(dynamic id) async {
+    final route = 'GET /api/radarr/movies/$id/credits';
+    try {
+      final response = await ApiClient.get<dynamic>('/api/radarr/movies/$id/credits');
+      if (!response.isSuccess || response.data == null) {
+        _logRoute(route, 0, extra: 'réponse vide ou échec');
+        return null;
+      }
+      final data = response.data;
+      if (data is Map<String, dynamic>) {
+        final normalized = {
+          'cast': data['data'] ?? data['cast'] ?? [],
+          'crew': data['crew'] ?? [],
+        };
+        return MovieCast.fromJson(normalized);
+      }
+      return null;
+    } catch (e) {
+      _logError(route, e);
+      return null;
+    }
+  }
+
+  static Future<MovieGallery?> getMovieImages(dynamic id) async {
+    final route = 'GET /api/radarr/movies/$id/images';
+    try {
+      final response = await ApiClient.get<dynamic>('/api/radarr/movies/$id/images');
+      if (!response.isSuccess || response.data == null) {
+        _logRoute(route, 0, extra: 'réponse vide ou échec');
+        return null;
+      }
+      final data = response.data;
+      if (data is Map<String, dynamic>) {
+        final galleryData = data['data'] ?? data;
+        if (galleryData is Map<String, dynamic>) {
+          return MovieGallery.fromJson(galleryData);
+        }
+      }
+      return null;
+    } catch (e) {
+      _logError(route, e);
+      return null;
+    }
+  }
+
+  static Future<List<dynamic>?> getMovieVideos(dynamic id) async {
+    final route = 'GET /api/radarr/movies/$id/videos';
+    try {
+      final response = await ApiClient.get<dynamic>('/api/radarr/movies/$id/videos');
+      if (!response.isSuccess || response.data == null) {
+        _logRoute(route, 0, extra: 'réponse vide ou échec');
+        return null;
+      }
+      final data = response.data;
+      if (data is Map<String, dynamic> && data['data'] is List) {
+        return data['data'] as List<dynamic>;
+      }
+      return null;
+    } catch (e) {
+      _logError(route, e);
+      return null;
     }
   }
 }

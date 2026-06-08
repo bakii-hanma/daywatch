@@ -115,7 +115,7 @@ class DownloadService {
   }
 
   /// Supprime un film des téléchargements locaux
-  static Future<bool> removeDownloadedMovie(int movieId) async {
+  static Future<bool> removeDownloadedMovie(dynamic movieId) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final List<MovieApiModel> current = await getDownloadedMovies();
@@ -149,7 +149,7 @@ class DownloadService {
   }
 
   /// Vérifie si un film est déjà téléchargé
-  static Future<bool> isMovieDownloaded(int movieId) async {
+  static Future<bool> isMovieDownloaded(dynamic movieId) async {
     final list = await getDownloadedMovies();
     return list.any((m) => m.id == movieId);
   }

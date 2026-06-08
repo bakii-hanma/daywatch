@@ -1,6 +1,7 @@
 import '../models/series_model.dart';
 import '../models/movie_model.dart'; // Pour MovieCast et MovieGallery
 import 'api_client.dart';
+import 'dart:convert';
 
 class SeriesService {
   /// Test de connectivité avec l'API Séries
@@ -13,14 +14,7 @@ class SeriesService {
     }
   }
 
-  /// Diagnostic réseau pour l'API Séries
-  static Future<void> diagnoseNetwork() async {
-    try {
-      await testConnection();
-    } catch (e) {
-      // Ignoré
-    }
-  }
+
 
   /// Helper générique pour récupérer et parser une liste de séries avec retry
   static Future<List<SeriesApiModel>> _fetchSeriesList(
@@ -39,6 +33,7 @@ class SeriesService {
         );
 
         if (response.isSuccess && response.data != null) {
+          print('📺 [SeriesService DEBUG BRUT] Response for $endpoint: ${jsonEncode(response.data)}');
           List<dynamic> items;
 
           // Gérer les formats de réponse directs et enveloppés
@@ -140,19 +135,35 @@ class SeriesService {
   /// Récupération d'une série par son ID
   /// GET /api/series/:id
   static Future<SeriesApiModel?> getSeriesById(String seriesId) async {
-    try {
-      final response = await ApiClient.getSeriesById<SeriesApiModel>(
-        seriesId,
-        fromJson: (json) => SeriesApiModel.fromJson(json),
-      );
+    int attempt = 0;
+    const maxRetries = 3;
 
-      if (response.isSuccess && response.data != null) {
-        return response.data!;
+    while (attempt < maxRetries) {
+      attempt++;
+      try {
+        final response = await ApiClient.getSeriesById<SeriesApiModel>(
+          seriesId,
+          fromJson: (json) => SeriesApiModel.fromJson(json),
+        );
+
+        if (response.isSuccess && response.data != null) {
+          return response.data!;
+        }
+        
+        print('⚠️ Échec de chargement de la série $seriesId (tentative $attempt/$maxRetries)');
+        if (attempt < maxRetries) {
+          await Future.delayed(Duration(milliseconds: 1500 * attempt));
+        }
+      } catch (e) {
+        print('⚠️ Erreur lors du chargement de la série $seriesId (tentative $attempt/$maxRetries) : $e');
+        if (attempt < maxRetries) {
+          await Future.delayed(Duration(milliseconds: 1500 * attempt));
+        } else {
+          return null;
+        }
       }
-      return null;
-    } catch (e) {
-      return null;
     }
+    return null;
   }
 
   /// Récupération du casting d'une série
@@ -180,11 +191,7 @@ class SeriesService {
     }
   }
 
-  /// Récupération de tous les épisodes d'une série (format simple)
-  /// GET /api/series/:id/episodes
-  static Future<List<EpisodeApiModel>> getSeriesEpisodes(String seriesId) async {
-    return getAllSeriesEpisodes(seriesId: seriesId);
-  }
+
 
   /// Récupération des épisodes avec leurs fichiers vidéo
   /// GET /api/series/:id/episodes-with-files
@@ -487,6 +494,8 @@ class SeriesService {
         );
 
         if (response.isSuccess && response.data != null) {
+          print('📺 [DEBUG STREAM] Réponse brute pour les épisodes de la série ($seriesId) :');
+          print(jsonEncode(response.data));
           List<dynamic> episodesData;
 
           // Gérer différents formats de réponse
@@ -616,25 +625,5 @@ class SeriesService {
     }
   }
 
-  /// Diagnostic pour un épisode spécifique
-  static Future<void> diagnoseEpisode(String seriesId, int episodeId) async {
-    try {
-      // Récupérer la série avec tous ses épisodes
-      final series = await getSeriesWithEpisodes(seriesId);
-      if (series == null) {
-        return;
-      }
 
-      // Chercher l'épisode spécifique
-      EpisodeApiModel? targetEpisode;
-      for (var seasonEpisodes in series.episodesBySeason.values) {
-        targetEpisode = seasonEpisodes
-            .where((e) => e.id == episodeId)
-            .firstOrNull;
-        if (targetEpisode != null) break;
-      }
-    } catch (e) {
-      // Ignoré
-    }
-  }
 }

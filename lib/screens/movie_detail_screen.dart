@@ -10,11 +10,12 @@ import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/services.dart';
 import '../design_system/colors.dart';
 import '../models/movie_model.dart';
 import '../widgets/common/horizontal_section.dart';
 import '../widgets/common/actor_card.dart';
-import '../widgets/common/movies_grid.dart';
 import '../widgets/common/comment_card.dart';
 import '../widgets/common/comment_input_field.dart';
 import '../data/sample_data.dart';
@@ -53,6 +54,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
   String? _userId;
   DateTime? _lastSaveTime;
   bool _isPlayerVisible = false; // État pour contrôler l'affichage du lecteur
+  bool _isSynopsisExpanded = false; // État pour le synopsis replié/déployé
   VideoPlayerController? _videoPlayerController;
   ChewieController? _chewieController;
   bool _isVideoInitialized = false;
@@ -85,13 +87,72 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
   double get rating => currentApiMovie?.rating ?? widget.movie?.rating ?? 0.0;
   String get year =>
       currentApiMovie?.year.toString() ?? widget.movie?.releaseDate ?? '';
-  String get duration => currentApiMovie != null
-      ? '${currentApiMovie!.runtime}min'
-      : (widget.movie?.duration ?? '');
+  String get duration {
+    if (currentApiMovie != null && currentApiMovie!.runtime > 0) {
+      final runtime = currentApiMovie!.runtime;
+      final h = runtime ~/ 60;
+      final m = runtime % 60;
+      if (h > 0) {
+        return m > 0 ? '${h}h ${m.toString().padLeft(2, '0')}' : '${h}h';
+      }
+      return '$m min';
+    }
+    return widget.movie?.duration ?? '';
+  }
   List<String> get genres =>
       currentApiMovie?.genres ?? [widget.movie?.genre ?? ''];
   String get certification => currentApiMovie?.certification ?? 'PG-13';
   bool get isApiMovie => currentApiMovie != null;
+
+  bool get hasFile {
+    if (!isApiMovie) return true; // Démo classique
+    final m = currentApiMovie!;
+    return m.downloaded || m.isAvailable || m.mediaInfo.isStreamable;
+  }
+
+  bool _isMovieUpcoming(MovieApiModel? movie) {
+    if (movie == null) return false;
+    if (movie.releaseInfo.status == 'announced') return true;
+    final now = DateTime.now();
+    final dates = <DateTime>[];
+    if (movie.releaseInfo.inCinemas != null && movie.releaseInfo.inCinemas!.isNotEmpty) {
+      final d = DateTime.tryParse(movie.releaseInfo.inCinemas!);
+      if (d != null) dates.add(d);
+    }
+    if (movie.releaseInfo.digitalRelease != null && movie.releaseInfo.digitalRelease!.isNotEmpty) {
+      final d = DateTime.tryParse(movie.releaseInfo.digitalRelease!);
+      if (d != null) dates.add(d);
+    }
+    if (movie.releaseInfo.physicalRelease != null && movie.releaseInfo.physicalRelease!.isNotEmpty) {
+      final d = DateTime.tryParse(movie.releaseInfo.physicalRelease!);
+      if (d != null) dates.add(d);
+    }
+    if (dates.isEmpty) return false;
+    return dates.every((d) => d.isAfter(now));
+  }
+
+  String? _upcomingReleaseDate(MovieApiModel? movie) {
+    if (movie == null) return null;
+    final now = DateTime.now();
+    final dates = <DateTime>[];
+    if (movie.releaseInfo.inCinemas != null && movie.releaseInfo.inCinemas!.isNotEmpty) {
+      final d = DateTime.tryParse(movie.releaseInfo.inCinemas!);
+      if (d != null && d.isAfter(now)) dates.add(d);
+    }
+    if (movie.releaseInfo.digitalRelease != null && movie.releaseInfo.digitalRelease!.isNotEmpty) {
+      final d = DateTime.tryParse(movie.releaseInfo.digitalRelease!);
+      if (d != null && d.isAfter(now)) dates.add(d);
+    }
+    if (movie.releaseInfo.physicalRelease != null && movie.releaseInfo.physicalRelease!.isNotEmpty) {
+      final d = DateTime.tryParse(movie.releaseInfo.physicalRelease!);
+      if (d != null && d.isAfter(now)) dates.add(d);
+    }
+    if (dates.isEmpty) return null;
+    dates.sort((a, b) => a.compareTo(b));
+    return _formatDate(dates.first);
+  }
+
+  Set<int> _localMovieTmdbIds = {};
 
   @override
   void initState() {
@@ -104,6 +165,18 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
     });
     _loadMovieDetails();
     _initLibraryState();
+    _loadLocalMovies();
+  }
+
+  Future<void> _loadLocalMovies() async {
+    try {
+      final allMovies = await MovieService.getOrFetchAllMovies();
+      if (mounted) {
+        setState(() {
+          _localMovieTmdbIds = allMovies.map((m) => m.tmdbId).toSet();
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadMovieDetails() async {
@@ -114,14 +187,69 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
     });
 
     try {
-      final completeMovie = await MovieService.getMovieByTmdbId(widget.apiMovie!.tmdbId);
-      if (completeMovie != null && mounted) {
-        setState(() {
-          _loadedApiMovie = completeMovie;
-          _isLoadingDetails = false;
-        });
-        // Rafraîchir l'état de la bibliothèque avec le film complet
-        _initLibraryState();
+      // 1. Chercher si le film existe en local dans Radarr
+      final allMovies = await MovieService.getOrFetchAllMovies();
+      MovieApiModel? localMovie;
+      for (final m in allMovies) {
+        if (m.tmdbId == widget.apiMovie!.tmdbId) {
+          localMovie = m;
+          break;
+        }
+      }
+
+      // 2. Charger les détails complets (via ID local ou ID TMDB)
+      MovieApiModel? completeMovie;
+      if (localMovie != null) {
+        completeMovie = await MovieService.getMovieById(localMovie.id);
+      } else {
+        completeMovie = await MovieService.getMovieByTmdbId(widget.apiMovie!.tmdbId);
+      }
+
+      if (completeMovie != null) {
+        // 3. Si des données clés (cast, galerie, trailer) sont absentes, on les récupère en parallèle
+        final needsCast = completeMovie.cast == null || completeMovie.cast!.cast.isEmpty;
+        final needsGallery = completeMovie.gallery == null || 
+            (completeMovie.gallery!.backdrops.isEmpty && completeMovie.gallery!.posters.isEmpty);
+        final needsTrailer = completeMovie.youTubeTrailerId == null || completeMovie.youTubeTrailerId!.isEmpty;
+
+        if (needsCast || needsGallery || needsTrailer) {
+          final targetId = localMovie != null ? localMovie.id : 'tmdb_${widget.apiMovie!.tmdbId}';
+
+          final results = await Future.wait([
+            needsCast ? MovieService.getMovieCredits(targetId) : Future.value(null),
+            needsGallery ? MovieService.getMovieImages(targetId) : Future.value(null),
+            needsTrailer ? MovieService.getMovieVideos(targetId) : Future.value(null),
+          ]);
+
+          final castResult = results[0] as MovieCast?;
+          final galleryResult = results[1] as MovieGallery?;
+          final videosResult = results[2] as List<dynamic>?;
+
+          String? newTrailerId = completeMovie.youTubeTrailerId;
+          if (needsTrailer && videosResult != null && videosResult.isNotEmpty) {
+            // Prendre le premier trailer de type 'Trailer' sur YouTube, ou sinon le premier
+            final mainTrailer = videosResult.firstWhere(
+              (v) => v['type'] == 'Trailer' && v['site'] == 'YouTube',
+              orElse: () => videosResult.first,
+            );
+            newTrailerId = mainTrailer['key']?.toString();
+          }
+
+          completeMovie = completeMovie.copyWith(
+            cast: needsCast && castResult != null ? castResult : completeMovie.cast,
+            gallery: needsGallery && galleryResult != null ? galleryResult : completeMovie.gallery,
+            youTubeTrailerId: newTrailerId,
+          );
+        }
+
+        if (mounted) {
+          setState(() {
+            _loadedApiMovie = completeMovie;
+            _isLoadingDetails = false;
+          });
+          // Rafraîchir l'état de la bibliothèque avec le film complet
+          _initLibraryState();
+        }
       } else {
         if (mounted) {
           setState(() {
@@ -182,6 +310,251 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
     }
   }
 
+  void _shareMovie() {
+    Clipboard.setData(ClipboardData(text: 'https://daywatch.app/movies/${currentApiMovie?.id ?? widget.movie?.id}'));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Lien de partage copié !')),
+    );
+  }
+
+  Future<void> _toggleFavoriteStatus() async {
+    final targetMovie = currentApiMovie;
+    if (_userId == null || targetMovie == null) {
+      return;
+    }
+    if (_isFavorite) {
+      final success = await FavoriteService.removeMovieFromFavorites(_userId!, targetMovie.id);
+      if (success) {
+        setState(() => _isFavorite = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Retiré de vos favoris')),
+        );
+      }
+    } else {
+      final success = await FavoriteService.addMovieToFavorites(_userId!, targetMovie.id);
+      if (success) {
+        setState(() => _isFavorite = true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ajouté à vos favoris')),
+        );
+      }
+    }
+  }
+
+  void _showOptionsMenu(bool isDarkMode) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isDarkMode ? Colors.grey[900] : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        final textColor = AppColors.getTextColor(isDarkMode);
+        final iconColor = AppColors.getTextSecondaryColor(isDarkMode);
+
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: Icon(Icons.share, color: iconColor),
+                title: Text('Partager', style: TextStyle(color: textColor)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _shareMovie();
+                },
+              ),
+              ListTile(
+                leading: Icon(_isFavorite ? Icons.bookmark : Icons.bookmark_border, color: _isFavorite ? Colors.red : iconColor),
+                title: Text(_isFavorite ? 'Retirer de ma liste' : 'Ajouter à ma liste', style: TextStyle(color: textColor)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _toggleFavoriteStatus();
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.people, color: iconColor),
+                title: Text('Voir tout le casting', style: TextStyle(color: textColor)),
+                onTap: () {
+                  Navigator.pop(context);
+                  setState(() {
+                    _tabController.index = 0; // Onglet Détails
+                  });
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.image, color: iconColor),
+                title: Text('Galerie', style: TextStyle(color: textColor)),
+                onTap: () {
+                  Navigator.pop(context);
+                  setState(() {
+                    _tabController.index = 0; // Onglet Détails
+                  });
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.link, color: iconColor),
+                title: Text('Copier le lien', style: TextStyle(color: textColor)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _shareMovie();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.flag, color: Colors.red),
+                title: const Text('Signaler un problème', style: TextStyle(color: Colors.red)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _launchEmailSupport();
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _launchEmailSupport() async {
+    final mailtoUri = Uri(
+      scheme: 'mailto',
+      path: 'support@daywatch.app',
+      queryParameters: {
+        'subject': 'Problème sur le film $title',
+      },
+    );
+    try {
+      if (await canLaunchUrl(mailtoUri)) {
+        await launchUrl(mailtoUri);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Impossible d\'ouvrir l\'application mail. Contactez support@daywatch.app')),
+        );
+      }
+    } catch (_) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Impossible d\'ouvrir l\'application mail. Contactez support@daywatch.app')),
+      );
+    }
+  }
+
+  Map<String, dynamic> _getDownloadSizes() {
+    final m = currentApiMovie;
+    if (m == null) {
+      return {
+        'original': '?',
+        'q720': '?',
+        'q480': '?',
+        'originalBytes': 0,
+        'q720Bytes': 0,
+        'q480Bytes': 0,
+      };
+    }
+    final realOrig = m.mediaInfo.sizeOnDisk;
+    final runtimeMin = m.runtime > 0 ? m.runtime : 105;
+    final runtimeSec = runtimeMin * 60;
+
+    String fmt(double bytes) {
+      if (bytes <= 0) return '?';
+      if (bytes >= 1e9) return '${(bytes / 1e9).toStringAsFixed(1)} GB';
+      return '${(bytes / 1e6).round()} MB';
+    }
+
+    final origBytes = realOrig > 0 ? realOrig : runtimeSec * (5.0 * 1e6 / 8.0);
+    final est720 = runtimeSec * (1.6 * 1e6 / 8.0);
+    final est480 = runtimeSec * (0.8 * 1e6 / 8.0);
+
+    return {
+      'original': realOrig > 0 ? fmt(realOrig) : '~${fmt(origBytes)}',
+      'q720': '~${fmt(est720)}',
+      'q480': '~${fmt(est480)}',
+      'originalBytes': origBytes.round(),
+      'q720Bytes': est720.round(),
+      'q480Bytes': est480.round(),
+    };
+  }
+
+  void _showDownloadQualityPicker(bool isDarkMode) {
+    final targetMovie = currentApiMovie;
+    if (targetMovie == null) return;
+
+    final sizes = _getDownloadSizes();
+    final textColor = AppColors.getTextColor(isDarkMode);
+    final secondaryColor = AppColors.getTextSecondaryColor(isDarkMode);
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isDarkMode ? Colors.grey[900] : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Text(
+                    'Choisir la qualité de téléchargement',
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                ListTile(
+                  title: Text('Original', style: TextStyle(color: textColor, fontWeight: FontWeight.bold)),
+                  subtitle: Text('Qualité native, pas de re-encodage • ${sizes['original']}', style: TextStyle(color: secondaryColor, fontSize: 12)),
+                  trailing: const Icon(Icons.hd, color: Colors.blue),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    _startDownload(targetMovie, 'Original');
+                  },
+                ),
+                ListTile(
+                  title: Text('720p compact', style: TextStyle(color: textColor, fontWeight: FontWeight.bold)),
+                  subtitle: Text('Compression côté serveur (~30s avant DL) • ${sizes['q720']}', style: TextStyle(color: secondaryColor, fontSize: 12)),
+                  trailing: const Icon(Icons.sd, color: Colors.green),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    _startDownload(targetMovie, '720p');
+                  },
+                ),
+                ListTile(
+                  title: Text('480p mobile', style: TextStyle(color: textColor, fontWeight: FontWeight.bold)),
+                  subtitle: Text('Très compact pour 4G/mobile • ${sizes['q480']}', style: TextStyle(color: secondaryColor, fontSize: 12)),
+                  trailing: const Icon(Icons.phone_android, color: Colors.orange),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    _startDownload(targetMovie, '480p');
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _startDownload(MovieApiModel targetMovie, String quality) async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Téléchargement en cours ($quality)...')),
+    );
+    final success = await DownloadService.downloadMovie(targetMovie);
+    if (success && mounted) {
+      setState(() => _isDownloaded = true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Téléchargé avec succès en qualité $quality !')),
+      );
+    }
+  }
+
   @override
   void dispose() {
     // S'assurer que le wakelock est désactivé en quittant l'écran
@@ -223,6 +596,9 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
 
             // Bouton "Bande annonce"
             _buildTrailerButton(isDarkMode),
+
+            // Bannières de statut : À venir / Bientôt disponible
+            _buildStatusBanners(isDarkMode),
 
             // Tab Bar (sans TabBarView)
             _buildTabBar(isDarkMode),
@@ -298,9 +674,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
                         ),
                       ),
                       InkWell(
-                        onTap: () {
-                          // Options menu
-                        },
+                        onTap: () => _showOptionsMenu(isDarkMode),
                         child: Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
@@ -404,22 +778,15 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
                       ),
                     ],
 
-                    // Statut de disponibilité pour les films API
-                    if (isApiMovie && !currentApiMovie!.downloaded) ...[
+                    if (isApiMovie && currentApiMovie!.tagline != null && currentApiMovie!.tagline!.isNotEmpty) ...[
                       const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Icon(Icons.schedule, color: Colors.orange, size: 16),
-                          const SizedBox(width: 4),
-                          Text(
-                            _getAvailabilityText(),
-                            style: TextStyle(
-                              color: Colors.orange,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
+                      Text(
+                        '"${currentApiMovie!.tagline!}"',
+                        style: TextStyle(
+                          color: AppColors.getTextColor(isDarkMode).withOpacity(0.8),
+                          fontSize: 13,
+                          fontStyle: FontStyle.italic,
+                        ),
                       ),
                     ],
                   ],
@@ -653,16 +1020,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
                     );
                   }
                 } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Téléchargement en cours...')),
-                  );
-                  final success = await DownloadService.downloadMovie(targetMovie);
-                  if (success) {
-                    setState(() => _isDownloaded = true);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Téléchargé avec succès !')),
-                    );
-                  }
+                  _showDownloadQualityPicker(isDarkMode);
                 }
               },
             ),
@@ -705,25 +1063,20 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
   }
 
   Widget _buildWatchNowButton(bool isDarkMode) {
-    // Ne pas afficher le bouton "Regarder maintenant" si le film n'est pas disponible
-    if (isApiMovie && !currentApiMovie!.downloaded) {
-      return const SizedBox.shrink();
-    }
-
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: SizedBox(
         width: double.infinity,
         height: 50,
         child: ElevatedButton.icon(
-          onPressed: _isPlayerVisible
+          onPressed: (!hasFile || _isPlayerVisible)
               ? null
               : () {
-                  // Lancer le lecteur en plein écran
                   _launchFullscreenPlayer();
                 },
           style: ElevatedButton.styleFrom(
             backgroundColor: _isPlayerVisible ? Colors.grey : Colors.red,
+            disabledBackgroundColor: Colors.grey.withOpacity(0.4),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(8),
             ),
@@ -733,7 +1086,11 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
             color: Colors.white,
           ),
           label: Text(
-            _isPlayerVisible ? 'En cours de lecture' : 'Regarder maintenant',
+            !hasFile
+                ? 'Bientôt disponible'
+                : _isPlayerVisible
+                    ? 'En cours de lecture'
+                    : 'Regarder maintenant',
             style: const TextStyle(
               color: Colors.white,
               fontSize: 16,
@@ -743,6 +1100,114 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
         ),
       ),
     );
+  }
+
+  Widget _buildStatusBanners(bool isDarkMode) {
+    if (!isApiMovie) return const SizedBox.shrink();
+    final movie = currentApiMovie!;
+    final isUpcoming = _isMovieUpcoming(movie);
+    final releaseDate = _upcomingReleaseDate(movie);
+
+    if (isUpcoming) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.amber.withOpacity(0.12),
+            border: Border.all(color: Colors.amber.withOpacity(0.4)),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.amber,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Text(
+                      'À VENIR',
+                      style: TextStyle(
+                        color: Colors.black87,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      releaseDate != null ? 'Sortie le $releaseDate' : 'Date de sortie à confirmer',
+                      style: const TextStyle(
+                        color: Color(0xFFFFE082),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Ce film n\'est pas encore sorti. Disponible automatiquement dès que la version FR/MULTI sera publiée.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.amber[100]?.withOpacity(0.7),
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (!hasFile) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.red.withOpacity(0.07),
+            border: Border.all(color: Colors.red.withOpacity(0.2)),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text(
+                'Bientôt disponible',
+                style: TextStyle(
+                  color: AppColors.getTextColor(isDarkMode),
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Ajoute-le à ta liste pour être notifié dès sa sortie.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppColors.getTextSecondaryColor(isDarkMode),
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return const SizedBox.shrink();
   }
 
   Widget _buildMiniPlayer(bool isDarkMode) {
@@ -975,8 +1440,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
 
       if (targetMovie.mediaInfo.fullPath != null) {
         // Construire l'URL complète avec le préfixe du serveur
-        final fullPath = targetMovie.mediaInfo.fullPath!;
-        final videoUrl = ServerConfig.getStreamingUrl(fullPath);
+        final videoUrl = ServerConfig.getApiUrl('/api/radarr/movies/${targetMovie.id}/stream');
 
         print('🎬 Lancement du lecteur avec URL: $videoUrl');
 
@@ -1571,8 +2035,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
   void _openFullscreenPlayer() {
     final targetMovie = currentApiMovie;
     if (isApiMovie && targetMovie != null && targetMovie.mediaInfo.fullPath != null) {
-      final fullPath = targetMovie.mediaInfo.fullPath!;
-      final videoUrl = ServerConfig.getStreamingUrl(fullPath);
+      final videoUrl = ServerConfig.getApiUrl('/api/radarr/movies/${targetMovie.id}/stream');
 
       // Récupérer la position actuelle si le lecteur est actif
       Duration? currentPosition;
@@ -1699,26 +2162,42 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
                     ),
                   ),
                   const SizedBox(height: 8),
-                  _isLoadingDetails
-                      ? const Center(
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(vertical: 20),
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.red,
-                            ),
-                          ),
-                        )
-                      : Text(
-                          overview.isNotEmpty
-                              ? overview
-                              : 'Aucun synopsis disponible.',
-                          style: TextStyle(
-                            color: AppColors.getTextSecondaryColor(isDarkMode),
-                            fontSize: 14,
-                            height: 1.5,
+                  if (_isLoadingDetails)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 20),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.red,
+                        ),
+                      ),
+                    )
+                  else ...[  
+                    Text(
+                      overview.isNotEmpty ? overview : 'Aucun synopsis disponible.',
+                      maxLines: _isSynopsisExpanded ? null : 4,
+                      overflow: _isSynopsisExpanded ? TextOverflow.visible : TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: AppColors.getTextSecondaryColor(isDarkMode),
+                        fontSize: 14,
+                        height: 1.5,
+                      ),
+                    ),
+                    if (overview.length > 250) ...[  
+                      const SizedBox(height: 6),
+                      GestureDetector(
+                        onTap: () => setState(() => _isSynopsisExpanded = !_isSynopsisExpanded),
+                        child: Text(
+                          _isSynopsisExpanded ? 'Voir moins' : 'Voir +',
+                          style: const TextStyle(
+                            color: Colors.red,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
+                      ),
+                    ],
+                  ],
                 ],
               ),
             ),
@@ -1741,13 +2220,17 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
                   ),
                 ),
               )
-            else if (isApiMovie && currentApiMovie!.gallery != null)
-              _buildApiGallery(isDarkMode)
+            else if (isApiMovie)
+              (currentApiMovie!.gallery != null &&
+                      (currentApiMovie!.gallery!.backdrops.isNotEmpty ||
+                          currentApiMovie!.gallery!.posters.isNotEmpty))
+                  ? _buildApiGallery(isDarkMode)
+                  : const SizedBox.shrink()
             else
               _buildClassicGallery(isDarkMode),
 
             // Bande-annonce YouTube
-            if (isApiMovie && !_isLoadingDetails && currentApiMovie!.youTubeTrailerId != null)
+            if (isApiMovie && !_isLoadingDetails && currentApiMovie!.youTubeTrailerId != null && currentApiMovie!.youTubeTrailerId!.isNotEmpty)
               _buildTrailerSection(isDarkMode),
 
             // Espacement en bas pour surélever le contenu
@@ -1816,9 +2299,13 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
       }).toList();
     }
 
-    // Fallback vers les données d'exemple si pas de casting API
-    if (actors.isEmpty) {
+    // Fallback vers les données d'exemple si pas de casting API et que ce n'est pas un film de l'API
+    if (actors.isEmpty && !isApiMovie) {
       actors = SampleData.actors;
+    }
+
+    if (actors.isEmpty) {
+      return const SizedBox.shrink();
     }
 
     return HorizontalSection<ActorModel>(
@@ -1842,6 +2329,37 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
   }
 
   Widget _buildCommentsTab(bool isDarkMode) {
+    if (isApiMovie) {
+      return Column(
+        children: [
+          const Expanded(
+            child: Center(
+              child: Padding(
+                padding: EdgeInsets.all(32),
+                child: Text(
+                  'Aucun commentaire pour le moment. Soyez le premier à en laisser un !',
+                  style: TextStyle(
+                    color: Colors.grey,
+                    fontSize: 14,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: CommentInputField(
+              isDarkMode: isDarkMode,
+              onSend: () {
+                // Ajouter commentaire
+              },
+            ),
+          ),
+        ],
+      );
+    }
+
     return Column(
       children: [
         Expanded(
@@ -1871,8 +2389,23 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
   }
 
   Widget _buildSimilarTab(bool isDarkMode) {
-    if (isApiMovie && currentApiMovie!.similarMovies.isNotEmpty) {
-      return _buildApiSimilarMovies(isDarkMode);
+    if (isApiMovie) {
+      if (currentApiMovie!.similarMovies.isNotEmpty) {
+        return _buildApiSimilarMovies(isDarkMode);
+      } else {
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Text(
+              'Aucun film similaire disponible.',
+              style: TextStyle(
+                color: AppColors.getTextSecondaryColor(isDarkMode),
+                fontSize: 14,
+              ),
+            ),
+          ),
+        );
+      }
     }
 
     // Fallback vers les films d'exemple avec une grille simple
@@ -2031,11 +2564,39 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
   }
 
   Widget _buildSimilarMovieCard(SimilarMovie movie, bool isDarkMode) {
+    final isAvailable = _localMovieTmdbIds.contains(movie.id);
     return InkWell(
-      onTap: () {
-        // Navigation vers les détails du film similaire
-        // On pourrait créer un MovieApiModel basique à partir de SimilarMovie
-      },
+      onTap: isAvailable
+          ? () {
+              // Créer un MovieApiModel minimal à partir de SimilarMovie pour la navigation
+              final apiMovie = MovieApiModel(
+                id: 'tmdb_${movie.id}',
+                tmdbId: movie.id,
+                title: movie.title,
+                originalTitle: movie.originalTitle,
+                overview: movie.overview,
+                year: movie.year,
+                rating: movie.rating,
+                popularity: movie.popularity,
+                runtime: 0,
+                isAvailable: false,
+                downloaded: false,
+                monitored: false,
+                images: MovieImages(poster: movie.poster, backdrop: movie.backdrop, banner: null),
+                mediaInfo: ExtendedMovieMediaInfo.empty(),
+                releaseInfo: MovieReleaseInfo.empty(),
+                genres: [],
+                tags: [],
+                similarMovies: [],
+              );
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => MovieDetailScreen.fromApiMovie(apiMovie),
+                ),
+              );
+            }
+          : null,
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
@@ -2055,21 +2616,47 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
                 borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(8),
                 ),
-                child: movie.poster != null
-                    ? _buildNetworkOrAssetImage(
-                        movie.poster!,
-                        fit: BoxFit.cover,
-                      )
-                    : Container(
-                        color: Colors.grey[300],
-                        child: const Center(
-                          child: Icon(
-                            Icons.movie,
-                            size: 40,
-                            color: Colors.grey,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    movie.poster != null
+                        ? _buildNetworkOrAssetImage(
+                            movie.poster!,
+                            fit: BoxFit.cover,
+                          )
+                        : Container(
+                            color: Colors.grey[300],
+                            child: const Center(
+                              child: Icon(
+                                Icons.movie,
+                                size: 40,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ),
+                    if (!_localMovieTmdbIds.contains(movie.id))
+                      Positioned(
+                        top: 6,
+                        left: 6,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.7),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            'INDISPONIBLE',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 8,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                            ),
                           ),
                         ),
                       ),
+                  ],
+                ),
               ),
             ),
             Container(
@@ -2572,6 +3159,10 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
   }
 
   Widget _buildTrailerSection(bool isDarkMode) {
+    if (currentApiMovie?.youTubeTrailerId == null || currentApiMovie!.youTubeTrailerId!.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(

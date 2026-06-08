@@ -27,6 +27,14 @@ class SeasonCard extends StatelessWidget {
   });
 
   Widget _buildImage() {
+    if (imagePath.isEmpty) {
+      return Container(
+        color: Colors.grey[300],
+        child: const Center(
+          child: Icon(Icons.tv, size: 40, color: Colors.grey),
+        ),
+      );
+    }
     // Toujours utiliser Image.network car les images viennent maintenant de l'API
     return Image.network(
       imagePath,
